@@ -1,0 +1,11 @@
+let name = "Mobs";
+
+if name == "Mobs" {
+    print "Potato";
+}
+
+let i = 0;
+
+while i < 10 {
+    print name;
+}

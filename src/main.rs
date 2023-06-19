@@ -74,7 +74,7 @@ fn main() {
     } else if args.len() > 1 {
         lox.run_file(&args[1]);
     } else {
-        println!("Usage: cargo run lox [script_path]");
+        println!("Usage: cargo run [script_path] or cargo run (runs the repl)");
         process::exit(64);
     }
 }
