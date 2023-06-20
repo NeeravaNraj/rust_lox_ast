@@ -151,27 +151,37 @@ impl<'a> Scanner<'a> {
     }
 
     fn block_comment(&mut self) {
-        while !self.is_at_end() {
-            if self.peek() == '/' && self.peek_next() == '*' {
-                self.advance();
-                self.advance();
-                self.block_comment();
+        loop {
+            match self.peek() {
+                '/' => {
+                    self.advance();
+                    if self.is_match('*') {
+                        self.block_comment();
+                    }
+                },
+                '*' => {
+                    self.advance();
+                    if self.is_match('/') {
+                        return;
+                    }
+                },
+                '\n' => {
+                    self.line += 1;
+                    self.advance();
+                },
+                '\0' => {
+                    self.error_handler.error(
+                        self.line - 1, 
+                        "Unterminated comment block.".to_string()
+                    );
+                    return;
+                },
+                _ => {
+                    self.advance();
+                }
             }
-
-            if self.peek() == '*' && self.peek_next() == '/' {
-                self.advance();
-                self.advance();
-                return;
-            } 
-
-            if self.peek() == '\n' {
-                self.line += 1;
-            }
-
-            self.advance();
         }
 
-        self.error_handler.error(self.line - 1, "Unterminated comment block.".to_string());
     }
 
     fn scan_token(&mut self) {

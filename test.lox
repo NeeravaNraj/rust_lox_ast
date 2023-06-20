@@ -1,5 +1,9 @@
 let name = "Mobs";
 
+/* comment */
+
+/* comment /* nested */ end */
+
 if name == "Mobs" {
     print "Potato";
 }
