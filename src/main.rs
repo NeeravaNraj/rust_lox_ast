@@ -4,13 +4,19 @@ use std::{
     fs,
     io
 };
+mod ast_print;
 mod expr;
 mod tokentype;
 mod token;
 mod scanner;
 mod error;
 use error::LoxError;
+use expr::{Expr, BinaryExpr, UnaryExpr, LiteralExpr, GroupingExpr};
 use scanner::Scanner;
+use token::{Token, Literal};
+use tokentype::TokenType;
+
+use crate::ast_print::AstPrinter;
 
 struct Lox {
     error: LoxError
@@ -67,15 +73,31 @@ impl Lox {
 
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
-    
-    let mut lox = Lox::new();
-    if args.len() == 1 {
-        lox.run_prompt();
-    } else if args.len() > 1 {
-        lox.run_file(&args[1]);
-    } else {
-        println!("Usage: cargo run [script_path] or cargo run (runs the repl)");
-        process::exit(64);
-    }
+    // let args: Vec<_> = env::args().collect();
+    //
+    // let mut lox = Lox::new();
+    // if args.len() == 1 {
+    //     lox.run_prompt();
+    // } else if args.len() > 1 {
+    //     lox.run_file(&args[1]);
+    // } else {
+    //     println!("Usage: cargo run [script_path] or cargo run (runs the repl)");
+    //     process::exit(64);
+    // }
+    let expression = Expr::Binary(
+        BinaryExpr::new(
+            Box::new(Expr::Unary(
+                UnaryExpr::new(
+                        Token::new(TokenType::Minus, "-".to_string(), None, 1),
+                        Box::new(Expr::Literal(LiteralExpr::new(Literal::Number(123.0))))
+                    ),
+                )),
+                Token::new(TokenType::Star, "*".to_string(), None, 1),
+                Box::new(Expr::Grouping(GroupingExpr::new(
+                    Box::new(Expr::Literal(LiteralExpr::new(Literal::Number(45.75))))
+                )
+            ))
+        )
+    );
+    println!("{{\n{}}}", AstPrinter::new().print(&expression));
 }

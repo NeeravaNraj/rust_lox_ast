@@ -13,10 +13,10 @@ pub enum Literal {
 }
 
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Option<Literal>,
-    line: i32,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub line: i32,
 }
 
 impl Token {
@@ -51,6 +51,19 @@ impl Display for Literal {
         }
     }
 }
+
+// impl ToString for Literal {
+//     fn to_string(&self) -> String {
+//         match self {
+//             Self::Number(num) => format!("Number {{ {} }} ", num),
+//             Self::Str(str) => format!("String {{ \"{}\" }} ", str),
+//             Self::None => format!("none"),
+//             Self::True => format!("true"),
+//             Self::False => format!("false"),
+//             Self::LiteralNone => format!("_LiteralNone_") // This none is for internal use only
+//         }
+//     }
+// }
 
 impl Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
