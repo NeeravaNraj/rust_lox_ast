@@ -205,6 +205,8 @@ impl<'a> Scanner<'a> {
             ',' => self.add_token(TokenType::Comma),
             '-' => self.add_token(TokenType::Minus),
             '+' => self.add_token(TokenType::Plus),
+            '?' => self.add_token(TokenType::QuestionMark),
+            ':' => self.add_token(TokenType::Colon),
             '*' => self.add_token(TokenType::Star),
             ';' => self.add_token(TokenType::Semicolon),
             '!' => {

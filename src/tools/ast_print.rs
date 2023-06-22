@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::{
     parser::expr::*,
     lexer::token::Literal
@@ -55,5 +57,9 @@ impl Visitor<String> for AstPrinter {
 
     fn visit_grouping_expr(&self, expr: &GroupingExpr, depth: u16) -> String {
         self.parenthesize("Group", vec![&expr.expression], depth) 
+    }
+
+    fn visit_ternary_expr(&self, expr: &TernaryExpr, depth: u16) -> String {
+        self.parenthesize("Ternary", vec![&expr.left, &expr.middle, &expr.right], depth)
     }
 }

@@ -9,19 +9,25 @@ use crate::{
     },
 };
 
-pub struct Parser {
-    tokens: Vec<Token>,
+use super::expr::TernaryExpr;
+
+pub struct Parser<'a> {
+    tokens: &'a Vec<Token>,
     curr: usize,
     error_handler: ParseErrorHandler,
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
+impl<'a> Parser<'a>{
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
         Self {
             tokens,
             curr: 0,
             error_handler: ParseErrorHandler::new()
         }
+    }
+
+    pub fn parse(&mut self) -> Result<Box<Expr>, LoxError> {
+        self.expression()
     }
 
     fn consume(&mut self, token: TokenType, error: &str) -> Result<&Token, LoxError> {
@@ -67,16 +73,19 @@ impl Parser {
             return Ok(Box::new(Expr::Grouping(GroupingExpr::new(expr))));
         }
 
-        Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::UknownLiteral))
+        if self.curr == 0 {
+            return Err(self.error_handler.error(self.peek(), LoxErrorsTypes::ExpectExpression));
+        }
+
+        Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::ExpectExpression))
     }
 
     fn unary(&mut self) -> Result<Box<Expr>, LoxError> {
         if self.is_match(
             vec![TokenType::Bang, TokenType::Minus]
         ) {
-            let right = self.unary()?;
             let operator = self.previous();
-            return Ok(Box::new(Expr::Unary(UnaryExpr::new(operator.dup(), right))));
+            return Ok(Box::new(Expr::Unary(UnaryExpr::new(operator.dup(), self.unary()?))));
         }
 
         self.primary()
@@ -88,9 +97,8 @@ impl Parser {
         while self.is_match(
             vec![TokenType::Slash, TokenType::Star]
         ) {
-            let right = self.unary()?;
             let operator = self.previous();    
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), right)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.unary()?)));
         }
 
         Ok(expr)
@@ -102,9 +110,8 @@ impl Parser {
         while self.is_match(
             vec![TokenType::Plus, TokenType::Minus]
         ) {
-            let right = self.factor()?;
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), right)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.factor()?)));
         }
 
         Ok(expr)
@@ -119,9 +126,8 @@ impl Parser {
             TokenType::Less, 
             TokenType::LessEqual]
         ) {
-            let right = self.term()?;
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), right)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.term()?)));
         }
         Ok(expr)
     }
@@ -130,15 +136,32 @@ impl Parser {
         let mut expr = self.comparison()?;
 
         while self.is_match(vec![TokenType::BangEqual, TokenType::Equals]) {
-            let right = self.comparison()?;
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), right)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.comparison()?)));
         }
         Ok(expr)
     }
 
+    fn ternary(&mut self) -> Result<Box<Expr>, LoxError> {
+        let mut expr = self.equality()?;
+
+        if self.match_single_token(TokenType::QuestionMark) {
+            let operator = self.tokens.get(self.curr - 1).unwrap();
+            let middle = self.expression()?;
+            if self.match_single_token(TokenType::Colon) {
+                let colon = self.previous();
+                return Ok(Box::new(Expr::Ternary(TernaryExpr::new(
+                    expr, operator.dup(), middle, colon.dup(), self.expression()?))
+                ));
+            }
+            return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::IncompleteTernary));
+        }
+
+        Ok(expr)
+    }
+
     fn expression(&mut self) -> Result<Box<Expr>, LoxError> {
-        self.equality()
+        self.ternary()
     }
 
     fn is_at_end(&self) -> bool {
@@ -184,5 +207,30 @@ impl Parser {
             }
         } 
         false
+    }
+
+    fn synchronize(&mut self,) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+        }
+
+        match self.peek().token_type {
+            TokenType::Class => return,
+            TokenType::DefFn => return,
+            TokenType::Let => return,
+            TokenType::For => return,
+            TokenType::If => return,
+            TokenType::Else => return,
+            TokenType::Return => return,
+            TokenType::Print => return,
+            TokenType::While => return,
+            _ => ()
+        };
+
+        self.advance();
     }
 }

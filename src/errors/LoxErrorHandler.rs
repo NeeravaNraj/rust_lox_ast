@@ -37,7 +37,7 @@ impl LoxErrorHandler {
     fn get_location(&self, error: &LoxError) -> String {
         match error.token.as_ref() {
             Some(token) if token.token_type == TokenType::EOF => "at end".to_string(),
-            Some(token) => token.lexeme.to_string(),
+            Some(token) => format!("at {}", token.lexeme),
             None        => String::from("")
         }
     }

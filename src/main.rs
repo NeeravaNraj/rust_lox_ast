@@ -11,6 +11,8 @@ mod tools;
 
 use errors::LoxErrorHandler::LoxErrorHandler;
 use lexer::scanner::*;
+use parser::rdp::Parser;
+use tools::ast_print::AstPrinter;
 
 struct Lox {
     error: LoxErrorHandler 
@@ -30,9 +32,16 @@ impl Lox {
             process::exit(64);
         });
 
-        for token in tokens {
-            println!("{token}");
+        let mut parser = Parser::new(tokens);
+
+        let ast_printer = AstPrinter::new();
+        if let Ok(expr) = parser.parse() {
+            ast_printer.print(&expr);
         }
+
+        // for token in tokens {
+        //     println!("{token}");
+        // }
     }
 
     fn run_file(&self, path: &String) {

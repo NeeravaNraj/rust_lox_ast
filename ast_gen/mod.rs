@@ -19,6 +19,7 @@ impl GenAst {
             "Grouping ; expression: Box<Expr>".to_string(),
             "Literal ; value: Literal".to_string(),
             "Unary ; operator: Token, right: Box<Expr>".to_string(),
+            "Ternary ; left: Box<Expr>, operator: Token, middle: Box<Expr>, colon: Token, right: Box<Expr>".to_string(),
         ];
 
         Self {
