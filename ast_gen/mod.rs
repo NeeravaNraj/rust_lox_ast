@@ -8,6 +8,10 @@ pub struct GenAst {
     types: Vec<String>,
 }
 
+// Binary;
+// left: Box<Expr> | operator: Token | right: Box<Expr>;
+// accpet: visitor: &dyn Visitor<T>, depth: u16 ; T
+
 impl GenAst {
     pub fn new(basename: &str, file_path: &str) -> Self {
         let types = vec![
@@ -26,26 +30,21 @@ impl GenAst {
     pub fn gen_ast(&self) -> std::io::Result<()> {
         let path = format!("{}/{}{}", self.file_path, self.basename.to_lowercase(), ".rs");
         let mut file = fs::File::create(&path)?;
-        file.write_all("use crate::token::{Token, Literal};\n".as_bytes())?;
-        file.write_all("\n".as_bytes())?;
+        file.write_all("use crate::{lexer::token::Token, lexer::token::Literal};\n\n".as_bytes())?;
         self.define_visitor(&mut file)?;
-        file.write_all("\n".as_bytes())?;
         file.write_all("pub enum Expr {\n".as_bytes())?;
         for t in &self.types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
             write!(file, "    {}(Box<{}{}>),\n", type_name, type_name, self.basename)?;
         }
-        file.write_all("}\n".as_bytes())?;
-        file.write_all("\n".as_bytes())?;
+        file.write_all("}\n\n".as_bytes())?;
         for t in &self.types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
             let type_fields = type_split[1].trim();
             self.define_type(&mut file, type_name, type_fields)?;
         }
-        file.write_all("\n".as_bytes())?;
-
         file.write_all("impl Expr {\n".as_bytes())?;
             file.write_all("    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> T {\n".as_bytes())?;
                 write!(file, "        match self {{\n")?;
@@ -86,8 +85,7 @@ impl GenAst {
         write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> T {{\n")?;
         write!(f, "        visitor.visit_{}_{}(self, depth)\n", type_name.to_lowercase(), self.basename.to_lowercase())?;
         write!(f, "    }}\n")?;
-        write!(f, "}}\n")?;
-        write!(f, "\n")?;
+        write!(f, "}}\n\n")?;
         Ok(())
     }
 
@@ -97,7 +95,7 @@ impl GenAst {
         for t in &self.types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
-            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> T;\n", 
+            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> T;\n\n", 
                    type_name.to_lowercase(), 
                    self.basename.to_lowercase(), 
                    self.basename.to_lowercase(),

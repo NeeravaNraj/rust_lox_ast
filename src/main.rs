@@ -4,35 +4,31 @@ use std::{
     fs,
     io
 };
-mod ast_print;
-mod expr;
-mod tokentype;
-mod token;
-mod scanner;
-mod error;
-use error::LoxError;
-use expr::{Expr, BinaryExpr, UnaryExpr, LiteralExpr, GroupingExpr};
-use scanner::Scanner;
-use token::{Token, Literal};
-use tokentype::TokenType;
+mod lexer;
+mod parser;
+mod errors;
+mod tools;
 
-use crate::ast_print::AstPrinter;
+use errors::LoxErrorHandler::LoxErrorHandler;
+use lexer::scanner::*;
 
 struct Lox {
-    error: LoxError
+    error: LoxErrorHandler 
 }
 
 
 impl Lox {
     fn new() -> Lox {
         Lox {
-            error: LoxError::new()
+            error: LoxErrorHandler::new()
         }
     }
 
     fn run(&self, file: &String) {
         let mut scanner = Scanner::new(file, &self.error);
-        let tokens = scanner.scan_tokens();
+        let tokens = scanner.scan_tokens().unwrap_or_else(|_| {
+            process::exit(64);
+        });
 
         for token in tokens {
             println!("{token}");
@@ -45,9 +41,6 @@ impl Lox {
             process::exit(1);
         });
         self.run(&bytes);
-        if self.error.has_error {
-            process::exit(65);
-        }
     }
 
     fn run_prompt(&mut self) {
@@ -65,7 +58,6 @@ impl Lox {
             }
 
             self.run(&input);
-            self.error.has_error = false;
             input.clear();
         }
     }
@@ -73,31 +65,15 @@ impl Lox {
 
 
 fn main() {
-    // let args: Vec<_> = env::args().collect();
-    //
-    // let mut lox = Lox::new();
-    // if args.len() == 1 {
-    //     lox.run_prompt();
-    // } else if args.len() > 1 {
-    //     lox.run_file(&args[1]);
-    // } else {
-    //     println!("Usage: cargo run [script_path] or cargo run (runs the repl)");
-    //     process::exit(64);
-    // }
-    let expression = Expr::Binary(
-        BinaryExpr::new(
-            Box::new(Expr::Unary(
-                UnaryExpr::new(
-                        Token::new(TokenType::Minus, "-".to_string(), None, 1),
-                        Box::new(Expr::Literal(LiteralExpr::new(Literal::Number(123.0))))
-                    ),
-                )),
-                Token::new(TokenType::Star, "*".to_string(), None, 1),
-                Box::new(Expr::Grouping(GroupingExpr::new(
-                    Box::new(Expr::Literal(LiteralExpr::new(Literal::Number(45.75))))
-                )
-            ))
-        )
-    );
-    println!("{{\n{}}}", AstPrinter::new().print(&expression));
+    let args: Vec<_> = env::args().collect();
+    
+    let mut lox = Lox::new();
+    if args.len() == 1 {
+        lox.run_prompt();
+    } else if args.len() > 1 {
+        lox.run_file(&args[1]);
+    } else {
+        println!("Usage: cargo run [script_path] or cargo run (runs the repl)");
+        process::exit(64);
+    }
 }

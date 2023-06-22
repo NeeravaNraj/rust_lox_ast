@@ -1,8 +1,9 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
-use crate::tokentype::TokenType;
+use crate::lexer::tokentype::*;
 
+#[derive(Clone)]
 pub enum Literal {
     Number(f64),
     Str(String),
@@ -29,6 +30,14 @@ impl Token {
         }
     }
 
+    pub fn dup(&self) -> Token {
+        Token { 
+            token_type: self.token_type, 
+            lexeme: self.lexeme.to_string(), 
+            literal: self.literal.clone(),
+            line: self.line
+        }
+    }
     pub fn eof(line:i32) -> Self {
         Self {
             token_type: TokenType::EOF,
@@ -52,18 +61,6 @@ impl Display for Literal {
     }
 }
 
-// impl ToString for Literal {
-//     fn to_string(&self) -> String {
-//         match self {
-//             Self::Number(num) => format!("Number {{ {} }} ", num),
-//             Self::Str(str) => format!("String {{ \"{}\" }} ", str),
-//             Self::None => format!("none"),
-//             Self::True => format!("true"),
-//             Self::False => format!("false"),
-//             Self::LiteralNone => format!("_LiteralNone_") // This none is for internal use only
-//         }
-//     }
-// }
 
 impl Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

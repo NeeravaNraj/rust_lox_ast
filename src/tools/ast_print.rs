@@ -1,5 +1,7 @@
-use crate::expr::*;
-use crate::token::Literal;
+use crate::{
+    parser::expr::*,
+    lexer::token::Literal
+};
 
 pub struct AstPrinter;
 
@@ -7,14 +9,20 @@ impl AstPrinter {
     pub fn new() -> Self {
         Self
     }
-    pub fn print(&self, expr: &Expr) -> String {
+
+    pub fn print(&self, expr: &Expr) {
+        let data = self.print_string(expr);
+        println!("{{\n{}}}", data);
+    }
+
+    fn print_string(&self, expr: &Expr) -> String {
         expr.accept(self, 0 as u16)
     }
 
     pub fn parenthesize(&self, name: &str, expr: Vec<&Expr>, prev_depth: u16) -> String {
         let tab = "  ";
         let mut depth: u16 = 0;
-        let mut base = format!("{tab}{name}: {{\n");
+        let mut base = format!("{tab}{name} : {{\n");
         depth += 2 + prev_depth;
         for e in expr {
             base.push_str(
@@ -24,7 +32,7 @@ impl AstPrinter {
                 )
             );
         }
-        base.push_str(&format!("{}}}\n", tab.repeat((depth - 1) as usize)));
+        base.push_str(&format!("{}}},\n", tab.repeat((depth - 1) as usize)));
         base
     }
 }

@@ -1,19 +1,27 @@
 use std::{process, collections::HashMap};
 
-use crate::{token::{Token, Literal}, tokentype::TokenType, error::LoxError};
+use crate::{
+    lexer::token::Token, lexer::token::Literal,
+    lexer::tokentype::TokenType,
+    errors::{
+        LoxErrorHandler::LoxErrorHandler,
+        LoxError,
+        LoxErrorsTypes
+    },
+};
 
 pub struct Scanner<'a> {
     source: Vec<char>,
     tokens: Vec<Token>,
     start: usize,
     curr: usize,
-    error_handler: &'a LoxError,
+    error_handler: &'a LoxErrorHandler,
     keywords: HashMap<String, TokenType>,
     line: i32
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &String, err_handler: &'a LoxError) -> Self {
+    pub fn new(source: &String, err_handler: &'a LoxErrorHandler) -> Self {
         let mut keywords: HashMap<String, TokenType> = HashMap::new();
         Scanner::load_keywords(&mut keywords);
         Self {
@@ -27,14 +35,14 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> &Vec<Token> {
+    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, &Vec<LoxError>> {
         while !self.is_at_end() {
             self.start = self.curr;
             self.scan_token();
         }
 
         self.tokens.push(Token::eof(self.line));
-        &self.tokens
+        Ok(&self.tokens)
     }
 
     fn is_at_end(&self) -> bool {
@@ -67,7 +75,9 @@ impl<'a> Scanner<'a> {
         }
 
         *self.source.get(self.curr).unwrap_or_else(|| {
-            eprintln!("Lexer error: Getting next character in \"peek()\".");
+            self.error_handler.error(self.line - 1, LoxErrorsTypes::LexerError(
+                "Something went in \"lexer::Scanner::peek()\", exiting.".to_string()
+            ));
             process::exit(1);
         })
     }
@@ -92,8 +102,9 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.error_handler.error(self.line - 1, 
-                String::from("Unterminated string.")
+            self.error_handler.error(
+                self.line - 1, 
+                LoxErrorsTypes::StringNotTerminated
             );
             return;
         }
@@ -172,7 +183,7 @@ impl<'a> Scanner<'a> {
                 '\0' => {
                     self.error_handler.error(
                         self.line - 1, 
-                        "Unterminated comment block.".to_string()
+                        LoxErrorsTypes::CommentNotTerminated
                     );
                     return;
                 },
@@ -246,10 +257,10 @@ impl<'a> Scanner<'a> {
             '\r' => (),
             '\t' => (),
             '\n' => self.line += 1,
-            _ => self.error_handler.error(self.line, "Unexpected character.".to_string())
-            
+            _ => {
+                self.error_handler.error(self.line - 1, LoxErrorsTypes::UnknownCharacter);
+            }
         }
-        
     }
 
     fn add_token(&mut self, token: TokenType) {
@@ -310,5 +321,3 @@ impl<'a> Scanner<'a> {
         }
     }
 }
-
-/* awdadad /* awdawd */ awdawdaw */
