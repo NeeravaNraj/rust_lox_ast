@@ -35,10 +35,10 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, &Vec<LoxError>> {
+    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, LoxError> {
         while !self.is_at_end() {
             self.start = self.curr;
-            self.scan_token();
+            self.scan_token()?;
         }
 
         self.tokens.push(Token::eof(self.line));
@@ -76,7 +76,7 @@ impl<'a> Scanner<'a> {
 
         *self.source.get(self.curr).unwrap_or_else(|| {
             self.error_handler.error(self.line - 1, LoxErrorsTypes::LexerError(
-                "Something went in \"lexer::Scanner::peek()\", exiting.".to_string()
+                "Something went in \"lexer::Scanner::peek()\", exiting".to_string()
             ));
             process::exit(1);
         })
@@ -88,7 +88,7 @@ impl<'a> Scanner<'a> {
         }
 
         *self.source.get(self.curr + 1).unwrap_or_else(|| {
-            eprintln!("Lexer error: Getting next character in \"peek()\".");
+            eprintln!("Lexer error: Getting next character in \"peek()\"");
             process::exit(1);
         })
     }
@@ -104,7 +104,7 @@ impl<'a> Scanner<'a> {
         if self.is_at_end() {
             self.error_handler.error(
                 self.line - 1, 
-                LoxErrorsTypes::StringNotTerminated
+                LoxErrorsTypes::SyntaxError("String was not terminated".to_string())
             );
             return;
         }
@@ -183,7 +183,7 @@ impl<'a> Scanner<'a> {
                 '\0' => {
                     self.error_handler.error(
                         self.line - 1, 
-                        LoxErrorsTypes::CommentNotTerminated
+                        LoxErrorsTypes::SyntaxError("Comment block was not terminated".to_string())
                     );
                     return;
                 },
@@ -195,7 +195,7 @@ impl<'a> Scanner<'a> {
 
     }
 
-    fn scan_token(&mut self) {
+    fn scan_token(&mut self) -> Result<(), LoxError> {
         let c = self.advance();
         match c {
             '(' => self.add_token(TokenType::LeftParen),
@@ -260,9 +260,11 @@ impl<'a> Scanner<'a> {
             '\t' => (),
             '\n' => self.line += 1,
             _ => {
-                self.error_handler.error(self.line - 1, LoxErrorsTypes::UnknownCharacter);
+                return Err(self.error_handler.error(self.line, LoxErrorsTypes::SyntaxError(format!("Unknown character {}", c))));
             }
         }
+
+        Ok(())
     }
 
     fn add_token(&mut self, token: TokenType) {
@@ -308,8 +310,8 @@ impl<'a> Scanner<'a> {
     fn get_literal_type(&self, token: &TokenType) -> Literal {
         match *token {
             TokenType::None => Literal::None,
-            TokenType::True => Literal::True,
-            TokenType::False => Literal::False,
+            TokenType::True => Literal::Bool(true),
+            TokenType::False => Literal::Bool(false),
             _ => Literal::LiteralNone
         }
     }

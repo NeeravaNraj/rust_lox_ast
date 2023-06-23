@@ -8,8 +8,10 @@ mod lexer;
 mod parser;
 mod errors;
 mod tools;
+mod interpreter;
 
 use errors::LoxErrorHandler::LoxErrorHandler;
+use interpreter::interpreter::Interpreter;
 use lexer::scanner::*;
 use parser::rdp::Parser;
 use tools::ast_print::AstPrinter;
@@ -28,20 +30,18 @@ impl Lox {
 
     fn run(&self, file: &String) {
         let mut scanner = Scanner::new(file, &self.error);
-        let tokens = scanner.scan_tokens().unwrap_or_else(|_| {
-            process::exit(64);
-        });
+        if let Ok(tokens) = scanner.scan_tokens(){
+            let mut parser = Parser::new(tokens);
 
-        let mut parser = Parser::new(tokens);
-
-        let ast_printer = AstPrinter::new();
-        if let Ok(expr) = parser.parse() {
-            ast_printer.print(&expr);
+            let ast_printer = AstPrinter::new();
+            if let Ok(expr) = parser.parse() {
+                // ast_printer.print(&expr);
+                let interpreter = Interpreter::new();
+                if let Ok(value)= interpreter.evaluate(&expr) {
+                    value.print_value();
+                }
+            }
         }
-
-        // for token in tokens {
-        //     println!("{token}");
-        // }
     }
 
     fn run_file(&self, path: &String) {

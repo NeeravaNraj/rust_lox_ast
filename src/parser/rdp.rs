@@ -34,17 +34,17 @@ impl<'a> Parser<'a>{
         }
 
         Err(self.error_handler.error(
-                &self.peek(), error
+            &self.previous(), error
         ))
     }
 
     fn primary(&mut self) -> Result<Box<Expr>, LoxError> {
         if self.match_single_token(TokenType::False) {
-            return Ok(Box::new(Expr::Literal(LiteralExpr::new(Literal::False))));
+            return Ok(Box::new(Expr::Literal(LiteralExpr::new(Literal::Bool(false)))));
         }
 
         if self.match_single_token(TokenType::True) {
-            return Ok(Box::new(Expr::Literal(LiteralExpr::new(Literal::True))));
+            return Ok(Box::new(Expr::Literal(LiteralExpr::new(Literal::Bool(true)))));
         }
 
         if self.match_single_token(TokenType::None) {
@@ -67,7 +67,7 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::LeftParen) {
             let expr = self.expression()?;
-            self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expect ')' after expression".to_string()))?;
+            self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expected ')' after expression, at".to_string()))?;
             return Ok(Box::new(Expr::Grouping(GroupingExpr::new(expr))));
         }
 
@@ -80,7 +80,7 @@ impl<'a> Parser<'a>{
             ));
         }
 
-        Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::ExpectExpression))
+        Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::SyntaxError("Expected expression after".to_string())))
     }
 
     fn unary(&mut self) -> Result<Box<Expr>, LoxError> {
@@ -158,7 +158,7 @@ impl<'a> Parser<'a>{
                         BinaryExpr::new(middle, colon.dup(), self.expression()?)))
                 ))));
             }
-            return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::IncompleteTernary));
+            return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::SyntaxError("Incomplete ternary operation,".to_string())));
         }
 
         Ok(expr)

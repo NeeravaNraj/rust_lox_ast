@@ -16,7 +16,6 @@ impl LoxErrorHandler {
         let message = LoxErrorsTypes::get_error_message(&err_type);
         let error = LoxError { 
             has_error: true, 
-            error_message: message, 
             error_type: err_type, 
             line,
             token: None
@@ -26,18 +25,18 @@ impl LoxErrorHandler {
     }
 
     pub fn report(&self, error: &LoxError) {
-        eprintln!("[Lox] [line \"{}\"] {} {}: {}", 
+        eprintln!("[Lox] [line \"{}\"] {}: {} {}", 
                   error.line,
                   LoxErrorsTypes::confirm_error_type(&error.error_type), 
+                  LoxErrorsTypes::get_error_message(&error.error_type),
                   self.get_location(error),
-                  LoxErrorsTypes::get_error_message(&error.error_type)
         );
     }
 
     fn get_location(&self, error: &LoxError) -> String {
         match error.token.as_ref() {
             Some(token) if token.token_type == TokenType::EOF => "at end".to_string(),
-            Some(token) => format!("at {}", token.lexeme),
+            Some(token) => format!("'{}'", token.lexeme),
             None        => String::from("")
         }
     }

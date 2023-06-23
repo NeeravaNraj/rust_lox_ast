@@ -30,7 +30,7 @@ impl GenAst {
     pub fn gen_ast(&self) -> std::io::Result<()> {
         let path = format!("{}/{}{}", self.file_path, self.basename.to_lowercase(), ".rs");
         let mut file = fs::File::create(&path)?;
-        file.write_all("use crate::{lexer::token::Token, lexer::token::Literal};\n\n".as_bytes())?;
+        file.write_all("use crate::{\n    lexer::token::Token,\n    lexer::token::Literal,\n    errors::LoxError\n};\n\n".as_bytes())?;
         self.define_visitor(&mut file)?;
         file.write_all("pub enum Expr {\n".as_bytes())?;
         for t in &self.types {
@@ -46,7 +46,7 @@ impl GenAst {
             self.define_type(&mut file, type_name, type_fields)?;
         }
         file.write_all("impl Expr {\n".as_bytes())?;
-            file.write_all("    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> T {\n".as_bytes())?;
+            file.write_all("    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> Result<T, LoxError> {\n".as_bytes())?;
                 write!(file, "        match self {{\n")?;
                 for t in &self.types {
                     let type_name = t.split_once(';').unwrap().0.trim();
@@ -82,7 +82,7 @@ impl GenAst {
         write!(f, "        )\n")?;
         write!(f, "    }}\n")?;
         write!(f, "\n")?;
-        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> T {{\n")?;
+        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> Result<T, LoxError> {{\n")?;
         write!(f, "        visitor.visit_{}_{}(self, depth)\n", type_name.to_lowercase(), self.basename.to_lowercase())?;
         write!(f, "    }}\n")?;
         write!(f, "}}\n\n")?;
@@ -95,7 +95,7 @@ impl GenAst {
         for t in &self.types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
-            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> T;\n\n", 
+            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> Result<T, LoxError>;\n\n", 
                    type_name.to_lowercase(), 
                    self.basename.to_lowercase(), 
                    self.basename.to_lowercase(),

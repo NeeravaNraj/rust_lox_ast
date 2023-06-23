@@ -2,7 +2,7 @@ use std::vec;
 
 use crate::{
     parser::expr::*,
-    lexer::token::Literal
+    errors::LoxError
 };
 
 pub struct AstPrinter;
@@ -13,15 +13,16 @@ impl AstPrinter {
     }
 
     pub fn print(&self, expr: &Expr) {
-        let data = self.print_string(expr);
-        println!("{{\n{}}}", data);
+        if let Ok(data) = self.print_string(expr){
+            println!("{{\n{}}}", data);
+        }
     }
 
-    fn print_string(&self, expr: &Expr) -> String {
+    fn print_string(&self, expr: &Expr) -> Result<String,LoxError> {
         expr.accept(self, 0 as u16)
     }
 
-    pub fn format(&self, name: &str, expr: Vec<&Expr>, prev_depth: u16) -> String {
+    pub fn format(&self, name: &str, expr: Vec<&Expr>, prev_depth: u16) -> Result<String, LoxError> {
         let tab = "  ";
         let mut depth: u16 = 0;
         let mut base = String::new();
@@ -36,14 +37,14 @@ impl AstPrinter {
                         &format!("{}{}: {}\n", 
                              tab.repeat(depth as usize),
                              branches[index],
-                             e.accept(self, depth).trim_end()
+                             e.accept(self, depth)?.trim_end()
                         )
                     );
                 } else {
                     base.push_str(
                         &format!("{}{}\n", 
                              tab.repeat(depth as usize),
-                             e.accept(self, depth).trim_end()
+                             e.accept(self, depth)?.trim_end()
                         )
                     );
                 }
@@ -57,24 +58,24 @@ impl AstPrinter {
                 base.push_str(&format!("{name}\n"));
             }
         }
-        base
+        Ok(base)
     }
 }
 
 impl Visitor<String> for AstPrinter {
-    fn visit_unary_expr(&self, expr: &UnaryExpr, depth: u16) -> String {
+    fn visit_unary_expr(&self, expr: &UnaryExpr, depth: u16) -> Result<String, LoxError> {
         self.format(&expr.operator.lexeme, vec![&expr.right], depth)
     }
 
-    fn visit_binary_expr(&self, expr: &BinaryExpr, depth: u16) -> String {
+    fn visit_binary_expr(&self, expr: &BinaryExpr, depth: u16) -> Result<String, LoxError> {
         self.format(&expr.operator.lexeme, vec![&expr.left, &expr.right], depth)
     }
 
-    fn visit_literal_expr(&self, expr: &LiteralExpr, depth: u16) -> String {
+    fn visit_literal_expr(&self, expr: &LiteralExpr, depth: u16) -> Result<String, LoxError> {
         self.format(expr.value.to_string().as_str(), vec![], depth)
     }
 
-    fn visit_grouping_expr(&self, expr: &GroupingExpr, depth: u16) -> String {
-        self.format("Group", vec![&expr.expression], depth) 
+    fn visit_grouping_expr(&self, expr: &GroupingExpr, depth: u16) -> Result<String, LoxError> {
+        self.format("Group", vec![&expr.expression], depth)
     }
 }
