@@ -9,8 +9,6 @@ use crate::{
     },
 };
 
-use super::expr::TernaryExpr;
-
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     curr: usize,
@@ -30,13 +28,13 @@ impl<'a> Parser<'a>{
         self.expression()
     }
 
-    fn consume(&mut self, token: TokenType, error: &str) -> Result<&Token, LoxError> {
+    fn consume(&mut self, token: TokenType, error: LoxErrorsTypes) -> Result<&Token, LoxError> {
         if self.check(token) {
             return Ok(self.advance());
         }
 
         Err(self.error_handler.error(
-                &self.peek(), LoxErrorsTypes::ParseError(error.to_string())
+                &self.peek(), error
         ))
     }
 
@@ -69,12 +67,17 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::LeftParen) {
             let expr = self.expression()?;
-            self.consume(TokenType::RightParen, "Expect ')' after expression")?;
+            self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expect ')' after expression".to_string()))?;
             return Ok(Box::new(Expr::Grouping(GroupingExpr::new(expr))));
         }
 
         if self.curr == 0 {
-            return Err(self.error_handler.error(self.peek(), LoxErrorsTypes::ExpectExpression));
+            return Err(self.error_handler.error(
+                self.peek(), 
+                LoxErrorsTypes::SyntaxError(
+                    format!("leading '{}' is not supported", self.peek().lexeme)
+                )
+            ));
         }
 
         Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::ExpectExpression))
@@ -143,16 +146,17 @@ impl<'a> Parser<'a>{
     }
 
     fn ternary(&mut self) -> Result<Box<Expr>, LoxError> {
-        let mut expr = self.equality()?;
+        let expr = self.equality()?;
 
         if self.match_single_token(TokenType::QuestionMark) {
             let operator = self.tokens.get(self.curr - 1).unwrap();
             let middle = self.expression()?;
             if self.match_single_token(TokenType::Colon) {
                 let colon = self.previous();
-                return Ok(Box::new(Expr::Ternary(TernaryExpr::new(
-                    expr, operator.dup(), middle, colon.dup(), self.expression()?))
-                ));
+                return Ok(Box::new(Expr::Binary(BinaryExpr::new(
+                    expr, operator.dup(), Box::new(Expr::Binary(
+                        BinaryExpr::new(middle, colon.dup(), self.expression()?)))
+                ))));
             }
             return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::IncompleteTernary));
         }

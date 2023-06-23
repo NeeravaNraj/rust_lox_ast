@@ -28,8 +28,8 @@ impl LoxErrorHandler {
     pub fn report(&self, error: &LoxError) {
         eprintln!("[Lox] [line \"{}\"] {} {}: {}", 
                   error.line,
-                  self.get_location(error),
                   LoxErrorsTypes::confirm_error_type(&error.error_type), 
+                  self.get_location(error),
                   LoxErrorsTypes::get_error_message(&error.error_type)
         );
     }

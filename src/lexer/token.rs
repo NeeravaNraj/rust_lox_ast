@@ -51,8 +51,8 @@ impl Token {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Number(num) => write!(f, "Number {{ {} }} ", num),
-            Self::Str(str) => write!(f, "String {{ \"{}\" }} ", str),
+            Self::Number(num) => write!(f, "Number {{ {} }}", num),
+            Self::Str(str) => write!(f, "String {{ \"{}\" }}", str),
             Self::None => write!(f, "none"),
             Self::True => write!(f, "true"),
             Self::False => write!(f, "false"),
