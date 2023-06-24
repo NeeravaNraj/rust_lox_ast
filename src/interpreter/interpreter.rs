@@ -42,7 +42,14 @@ impl Interpreter {
         } else if left.get_typename() == "String" && right.get_typename() == "String" {
             return  Ok(());
         }
-        Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings".to_string())))
+
+        match operator.token_type {
+            TokenType::Minus |
+            TokenType::Slash |
+            TokenType::Star  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be numbers for".to_string()))),
+            TokenType::Plus  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings  for".to_string()))),
+            _ => Ok(())
+        }
     }
 
     fn check_arithmetic(&self, operator: &Token, expr: Result<Literal, String>) -> Result<Literal, LoxError> {
@@ -53,6 +60,20 @@ impl Interpreter {
         }
 
         unreachable!("unreachable state reached: check_arithmetic");
+    }
+
+    fn evaluate_ternary(&self, expr: &TernaryExpr) -> Result<Literal, LoxError> {
+        let left = self.evaluate(&expr.left)?;
+
+        if let Literal::Bool(bool) = left {
+            if bool {
+                let middle = self.evaluate(&expr.middle)?;
+                return Ok(middle);
+            } 
+            let right = self.evaluate(&expr.right)?;
+            return Ok(right);
+        }
+        Err(self.error_handler.error(&expr.operator, LoxErrorsTypes::RuntimeError("ternary operation failed.".to_string())))
     }
 
     fn do_comparison(&self, operator: &Token, left: Literal, right: Literal) -> Result<Literal, LoxError> {
@@ -87,7 +108,9 @@ impl Visitor<Literal> for Interpreter {
         
         self.check_num_binary(&expr.operator, &left, &right)?;
         match expr.operator.token_type {
-            TokenType::Minus =>  self.check_arithmetic(&expr.operator, left - right),
+            TokenType::Minus =>  {
+                self.check_arithmetic(&expr.operator, left - right)
+            },
             TokenType::Slash => self.check_arithmetic(&expr.operator, left / right),
             TokenType::Star  => self.check_arithmetic(&expr.operator, left * right),
             TokenType::Plus  => self.check_arithmetic(&expr.operator, left + right),
@@ -96,7 +119,7 @@ impl Visitor<Literal> for Interpreter {
             TokenType::Greater |
             TokenType::Less |
             TokenType::GreaterEqual |
-            TokenType::LessEqual => self.do_comparison(&expr.operator, left, right),
+            TokenType::LessEqual    => self.do_comparison(&expr.operator, left, right),
             _ => todo!("")
         }    
     }
@@ -107,5 +130,9 @@ impl Visitor<Literal> for Interpreter {
 
     fn visit_grouping_expr(&self, expr: &GroupingExpr, _: u16) -> Result<Literal, LoxError> {
         self.evaluate(&expr.expression)
+    }
+
+    fn visit_ternary_expr(&self, expr: &TernaryExpr, depth: u16) -> Result<Literal, LoxError> {
+        self.evaluate_ternary(&expr) 
     }
 }

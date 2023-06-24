@@ -33,7 +33,7 @@ impl Lox {
         if let Ok(tokens) = scanner.scan_tokens(){
             let mut parser = Parser::new(tokens);
 
-            let ast_printer = AstPrinter::new();
+            // let ast_printer = AstPrinter::new();
             if let Ok(expr) = parser.parse() {
                 // ast_printer.print(&expr);
                 let interpreter = Interpreter::new();

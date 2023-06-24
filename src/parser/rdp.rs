@@ -9,6 +9,8 @@ use crate::{
     },
 };
 
+use super::expr::TernaryExpr;
+
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     curr: usize,
@@ -153,10 +155,7 @@ impl<'a> Parser<'a>{
             let middle = self.expression()?;
             if self.match_single_token(TokenType::Colon) {
                 let colon = self.previous();
-                return Ok(Box::new(Expr::Binary(BinaryExpr::new(
-                    expr, operator.dup(), Box::new(Expr::Binary(
-                        BinaryExpr::new(middle, colon.dup(), self.expression()?)))
-                ))));
+                return Ok(Box::new(Expr::Ternary(TernaryExpr::new(expr, operator.dup(), middle, colon.dup(), self.expression()?))));
             }
             return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::SyntaxError("Incomplete ternary operation,".to_string())));
         }

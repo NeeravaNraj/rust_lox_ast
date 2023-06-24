@@ -78,4 +78,8 @@ impl Visitor<String> for AstPrinter {
     fn visit_grouping_expr(&self, expr: &GroupingExpr, depth: u16) -> Result<String, LoxError> {
         self.format("Group", vec![&expr.expression], depth)
     }
+
+    fn visit_ternary_expr(&self, expr: &TernaryExpr, depth: u16) -> Result<String, LoxError> {
+        self.format("Ternary", vec![&expr.left, &expr.middle, &expr.right], depth)
+    }
 }
