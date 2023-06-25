@@ -2,57 +2,43 @@ use std::{
     fs::{self, File}, io::Write
 };
 
-pub struct GenAst {
-    basename: String,
-    file_path: String,
-    types: Vec<String>,
-}
+pub struct GenAst;
 
 // Binary;
 // left: Box<Expr> | operator: Token | right: Box<Expr>;
 // accpet: visitor: &dyn Visitor<T>, depth: u16 ; T
 
 impl GenAst {
-    pub fn new(basename: &str, file_path: &str) -> Self {
-        let types = vec![
-            "Binary ; left: Box<Expr>, operator: Token, right: Box<Expr>".to_string(),
-            "Grouping ; expression: Box<Expr>".to_string(),
-            "Literal ; value: Literal".to_string(),
-            "Unary ; operator: Token, right: Box<Expr>".to_string(),
-            "Ternary ; left: Box<Expr>, operator: Token, middle: Box<Expr>, colon: Token, right: Box<Expr>".to_string()
-        ];
-
-        Self {
-            basename: basename.to_string(),
-            file_path: file_path.to_string(),
-            types
-        }
-    }
-    pub fn gen_ast(&self) -> std::io::Result<()> {
-        let path = format!("{}/{}{}", self.file_path, self.basename.to_lowercase(), ".rs");
+    pub fn gen(basename: impl Into<String>, file_path: impl Into<String>, types: Vec::<String>, mods: Vec::<String>) -> std::io::Result<()> {
+        let basename = basename.into();
+        let file_path = file_path.into();
+        let path = format!("{}/{}{}", file_path, basename.to_lowercase(), ".rs");
         let mut file = fs::File::create(&path)?;
-        file.write_all("use crate::{\n    lexer::token::Token,\n    lexer::token::Literal,\n    errors::LoxError\n};\n\n".as_bytes())?;
-        self.define_visitor(&mut file)?;
-        file.write_all("pub enum Expr {\n".as_bytes())?;
-        for t in &self.types {
+        for m in mods {
+            write!(file, "use {};\n", m)?;
+        }
+        write!(file, "\n")?;
+        GenAst::define_visitor(&mut file, &basename, &types)?;
+        write!(file, "pub enum {} {{\n", basename)?;
+        for t in &types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
-            write!(file, "    {}(Box<{}{}>),\n", type_name, type_name, self.basename)?;
+            write!(file, "    {}(Box<{}{}>),\n", type_name, type_name, basename)?;
         }
         file.write_all("}\n\n".as_bytes())?;
-        for t in &self.types {
+        for t in &types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
             let type_fields = type_split[1].trim();
-            self.define_type(&mut file, type_name, type_fields)?;
+            GenAst::define_type(&mut file, type_name, type_fields, &basename)?;
         }
-        file.write_all("impl Expr {\n".as_bytes())?;
-            file.write_all("    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> Result<T, LoxError> {\n".as_bytes())?;
+        write!(file, "impl {} {{\n", basename)?;
+            write!(file, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxError> {{\n", basename)?;
                 write!(file, "        match self {{\n")?;
-                for t in &self.types {
+                for t in &types {
                     let type_name = t.split_once(';').unwrap().0.trim();
                     write!(file, "            {}::{}(t) => t.accept(visitor, depth),\n",
-                        self.basename, 
+                        basename, 
                         type_name
                     )?;
                 }
@@ -62,8 +48,8 @@ impl GenAst {
         Ok(())
     }
 
-    fn define_type(&self, f: &mut File, type_name: &str, type_fields: &str) -> std::io::Result<()> {
-        write!(f, "pub struct {}{} {{\n", type_name, self.basename)?;
+    fn define_type(f: &mut File, type_name: &str, type_fields: &str, basename: &String) -> std::io::Result<()> {
+        write!(f, "pub struct {}{} {{\n", type_name, basename)?;
         let fields: Vec<&str> = type_fields.split(", ").collect();
         for field in &fields {
             write!(f, "    pub {},\n", field)?;
@@ -71,7 +57,7 @@ impl GenAst {
         write!(f, "}}\n")?;
         write!(f, "\n")?;
 
-        write!(f, "impl {}{} {{\n", type_name, self.basename)?;
+        write!(f, "impl {}{} {{\n", type_name, basename)?;
         write!(f, "    pub fn new({}) -> Box<Self> {{\n", type_fields)?;
         write!(f, "        Box::new(\n")?;
         write!(f, "            Self {{\n")?;
@@ -83,25 +69,25 @@ impl GenAst {
         write!(f, "        )\n")?;
         write!(f, "    }}\n")?;
         write!(f, "\n")?;
-        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor<T>, depth: u16) -> Result<T, LoxError> {{\n")?;
-        write!(f, "        visitor.visit_{}_{}(self, depth)\n", type_name.to_lowercase(), self.basename.to_lowercase())?;
+        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxError> {{\n", basename)?;
+        write!(f, "        visitor.visit_{}_{}(self, depth)\n", type_name.to_lowercase(), basename.to_lowercase())?;
         write!(f, "    }}\n")?;
         write!(f, "}}\n\n")?;
         Ok(())
     }
 
-    fn define_visitor(&self, f: &mut File) -> std::io::Result<()> {
-        write!(f, "pub trait Visitor<T> {{\n")?;
+    fn define_visitor(f: &mut File, basename: &String, types: &Vec<String>) -> std::io::Result<()> {
+        write!(f, "pub trait Visitor{}<T> {{\n", basename)?;
 
-        for t in &self.types {
+        for t in types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
             write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> Result<T, LoxError>;\n\n", 
                    type_name.to_lowercase(), 
-                   self.basename.to_lowercase(), 
-                   self.basename.to_lowercase(),
+                   basename.to_lowercase(), 
+                   basename.to_lowercase(),
                    type_name,
-                   self.basename
+                   basename
             )?;
         }
 

@@ -30,7 +30,6 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::ParseError(_)   => LoxErrorsTypes::ParseError("".to_string()).to_string(),
             LoxErrorsTypes::RuntimeError(_) => LoxErrorsTypes::RuntimeError("".to_string()).to_string(),
             LoxErrorsTypes::TypeError(_)    => LoxErrorsTypes::TypeError("".to_string()).to_string(),
-            _ => "Error".to_string()
         }
     }
 }
@@ -47,10 +46,7 @@ impl ToString for LoxErrorsTypes {
     }
 }
 
-pub enum LoxWarningTypes {
-
-}
-
+pub enum LoxWarningTypes{}
 
 pub struct LoxWarning {
     pub has_warning: bool,
@@ -73,7 +69,6 @@ impl LoxError {
         line: i32,
         has_error: bool
     ) -> Self {
-        let error_message = LoxErrorsTypes::get_error_message(&error_type);
         Self {
             error_type,
             token,

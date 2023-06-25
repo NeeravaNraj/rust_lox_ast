@@ -1,8 +1,8 @@
 use std::vec;
 
 use crate::{
-    parser::expr::*,
-    errors::LoxError
+    parser::{expr::*, stmt::*},
+    errors::LoxError, lexer::token::Literal
 };
 
 pub struct AstPrinter;
@@ -62,7 +62,7 @@ impl AstPrinter {
     }
 }
 
-impl Visitor<String> for AstPrinter {
+impl VisitorExpr<String> for AstPrinter {
     fn visit_unary_expr(&self, expr: &UnaryExpr, depth: u16) -> Result<String, LoxError> {
         self.format(&expr.operator.lexeme, vec![&expr.right], depth)
     }
@@ -81,5 +81,28 @@ impl Visitor<String> for AstPrinter {
 
     fn visit_ternary_expr(&self, expr: &TernaryExpr, depth: u16) -> Result<String, LoxError> {
         self.format("Ternary", vec![&expr.left, &expr.middle, &expr.right], depth)
+    }
+
+    fn visit_variable_expr(&self, expr: &VariableExpr, depth: u16) -> Result<String, LoxError> {
+        self.format(&expr.name.lexeme, vec![], depth)
+    }
+}
+
+impl VisitorStmt<String> for AstPrinter {
+    fn visit_expression_stmt(&self, stmt: &ExpressionStmt, depth: u16) -> Result<String, LoxError> {
+        self.format("ExprStmt", vec![&stmt.expr], depth)
+    }
+
+    fn visit_print_stmt(&self, stmt: &PrintStmt, depth: u16) -> Result<String, LoxError> {
+        self.format("PrintStmt", vec![&stmt.expr], depth)
+    }
+
+    fn visit_let_stmt(&self, stmt: &LetStmt, depth: u16) -> Result<String, LoxError> {
+        if let Some(init) = &stmt.initializer {
+            self.format(&stmt.name.lexeme, vec![&init], depth)
+        } else {
+            let expr = Box::new(Expr::Literal(LiteralExpr::new(Literal::None)));
+            self.format(&stmt.name.lexeme, vec![&expr], depth)
+        }
     }
 }

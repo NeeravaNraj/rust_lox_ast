@@ -13,7 +13,6 @@ impl LoxErrorHandler {
     }
 
     pub fn error(&self, line: i32, err_type: LoxErrorsTypes) -> LoxError {
-        let message = LoxErrorsTypes::get_error_message(&err_type);
         let error = LoxError { 
             has_error: true, 
             error_type: err_type, 
@@ -25,7 +24,7 @@ impl LoxErrorHandler {
     }
 
     pub fn report(&self, error: &LoxError) {
-        eprintln!("[Lox] [line \"{}\"] {}: {} {}", 
+        eprintln!("[Lox] (line:{}) {}: {} {}", 
                   error.line,
                   LoxErrorsTypes::confirm_error_type(&error.error_type), 
                   LoxErrorsTypes::get_error_message(&error.error_type),

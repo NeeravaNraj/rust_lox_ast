@@ -1,14 +1,10 @@
-use std::{
-    process,
-    env,
-    fs,
-    io
-};
+#[warn(non_snake_case)]
+use std::{env, fs, io, process};
+mod errors;
+mod interpreter;
 mod lexer;
 mod parser;
-mod errors;
 mod tools;
-mod interpreter;
 
 use errors::LoxErrorHandler::LoxErrorHandler;
 use interpreter::interpreter::Interpreter;
@@ -17,29 +13,29 @@ use parser::rdp::Parser;
 use tools::ast_print::AstPrinter;
 
 struct Lox {
-    error: LoxErrorHandler 
+    error: LoxErrorHandler,
+    interpreter: Interpreter,
 }
-
 
 impl Lox {
     fn new() -> Lox {
         Lox {
-            error: LoxErrorHandler::new()
+            error: LoxErrorHandler::new(),
+            interpreter: Interpreter::new()
         }
     }
 
     fn run(&self, file: &String) {
         let mut scanner = Scanner::new(file, &self.error);
-        if let Ok(tokens) = scanner.scan_tokens(){
+        if let Ok(tokens) = scanner.scan_tokens() {
             let mut parser = Parser::new(tokens);
 
             // let ast_printer = AstPrinter::new();
-            if let Ok(expr) = parser.parse() {
+            if let Ok(stmts) = parser.parse() {
                 // ast_printer.print(&expr);
-                let interpreter = Interpreter::new();
-                if let Ok(value)= interpreter.evaluate(&expr) {
-                    value.print_value();
-                }
+                if let Err(err) = self.interpreter.interpret(stmts) {
+                    if err.has_error {}
+                };
             }
         }
     }
@@ -72,10 +68,9 @@ impl Lox {
     }
 }
 
-
 fn main() {
     let args: Vec<_> = env::args().collect();
-    
+
     let mut lox = Lox::new();
     if args.len() == 1 {
         lox.run_prompt();

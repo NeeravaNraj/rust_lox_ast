@@ -9,7 +9,10 @@ use crate::{
     },
 };
 
-use super::expr::TernaryExpr;
+use super::{
+    expr::*,
+    stmt::*
+};
 
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
@@ -26,13 +29,65 @@ impl<'a> Parser<'a>{
         }
     }
 
-    pub fn parse(&mut self) -> Result<Box<Expr>, LoxError> {
-        self.expression()
+    pub fn parse(&mut self) -> Result<Vec<Box<Stmt>>, LoxError> {
+        let mut  statments: Vec<Box<Stmt>> = Vec::new();
+        while !self.is_at_end() {
+            statments.push(self.declaration()?);
+        }
+
+        Ok(statments)
     }
 
-    fn consume(&mut self, token: TokenType, error: LoxErrorsTypes) -> Result<&Token, LoxError> {
+    fn var_declaration(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let name = self.consume(
+            TokenType::Identifier,
+            LoxErrorsTypes::SyntaxError("Expected name for identifier".to_string())
+        )?;
+
+        let initializer = if self.is_match(vec![TokenType::Assign]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expect ';' after".to_string()))?;
+
+        Ok(Box::new(Stmt::Let(LetStmt::new(name, initializer))))
+    }
+    
+    fn declaration(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let result = if self.match_single_token(TokenType::Let) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        };
+        if result.is_err() {
+            self.synchronize();
+        }
+        result
+    }
+
+    fn print_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after".to_string()))?;
+        Ok(Box::new(Stmt::Print(PrintStmt::new(expr))))
+    }
+
+    fn expr_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after".to_string()))?;
+        Ok(Box::new(Stmt::Expression(ExpressionStmt::new(expr))))
+    }
+
+    fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        if self.match_single_token(TokenType::Print) {
+            return self.print_statement();
+        }
+        self.expr_statement()
+    }
+
+    fn consume(&mut self, token: TokenType, error: LoxErrorsTypes) -> Result<Token, LoxError> {
         if self.check(token) {
-            return Ok(self.advance());
+            return Ok(self.advance().dup());
         }
 
         Err(self.error_handler.error(
@@ -51,6 +106,10 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::None) {
             return Ok(Box::new(Expr::Literal(LiteralExpr::new(Literal::None))));
+        }
+
+        if self.match_single_token(TokenType::Identifier) {
+            return Ok(Box::new(Expr::Variable(VariableExpr::new(self.previous()))))
         }
 
         if self.is_match(vec![TokenType::Number, TokenType::String]) {
@@ -90,7 +149,7 @@ impl<'a> Parser<'a>{
             vec![TokenType::Bang, TokenType::Minus]
         ) {
             let operator = self.previous();
-            return Ok(Box::new(Expr::Unary(UnaryExpr::new(operator.dup(), self.unary()?))));
+            return Ok(Box::new(Expr::Unary(UnaryExpr::new(operator, self.unary()?))));
         }
 
         self.primary()
@@ -103,7 +162,7 @@ impl<'a> Parser<'a>{
             vec![TokenType::Slash, TokenType::Star]
         ) {
             let operator = self.previous();    
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.unary()?)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator, self.unary()?)));
         }
 
         Ok(expr)
@@ -116,7 +175,7 @@ impl<'a> Parser<'a>{
             vec![TokenType::Plus, TokenType::Minus]
         ) {
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.factor()?)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator, self.factor()?)));
         }
 
         Ok(expr)
@@ -132,7 +191,7 @@ impl<'a> Parser<'a>{
             TokenType::LessEqual]
         ) {
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.term()?)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator, self.term()?)));
         }
         Ok(expr)
     }
@@ -142,7 +201,7 @@ impl<'a> Parser<'a>{
 
         while self.is_match(vec![TokenType::BangEqual, TokenType::Equals]) {
             let operator = self.previous();
-            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator.dup(), self.comparison()?)));
+            expr = Box::new(Expr::Binary(BinaryExpr::new(expr, operator, self.comparison()?)));
         }
         Ok(expr)
     }
@@ -151,13 +210,13 @@ impl<'a> Parser<'a>{
         let expr = self.equality()?;
 
         if self.match_single_token(TokenType::QuestionMark) {
-            let operator = self.tokens.get(self.curr - 1).unwrap();
+            let operator = self.tokens.get(self.curr - 1).unwrap().dup();
             let middle = self.expression()?;
             if self.match_single_token(TokenType::Colon) {
                 let colon = self.previous();
-                return Ok(Box::new(Expr::Ternary(TernaryExpr::new(expr, operator.dup(), middle, colon.dup(), self.expression()?))));
+                return Ok(Box::new(Expr::Ternary(TernaryExpr::new(expr, operator, middle, colon, self.expression()?))));
             }
-            return Err(self.error_handler.error(self.previous(), LoxErrorsTypes::SyntaxError("Incomplete ternary operation,".to_string())));
+            return Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::SyntaxError("Incomplete ternary operation,".to_string())));
         }
 
         Ok(expr)
@@ -175,11 +234,11 @@ impl<'a> Parser<'a>{
         self.tokens.get(self.curr).unwrap()
     }
 
-    fn previous(&self) -> &Token {
-        self.tokens.get(self.curr - 1).unwrap()
+    fn previous(&self) -> Token {
+        self.tokens.get(self.curr - 1).unwrap().dup()
     }
 
-    fn advance(&mut self) -> &Token {
+    fn advance(&mut self) -> Token {
         if !self.is_at_end() {
             self.curr += 1;
         }

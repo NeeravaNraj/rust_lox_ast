@@ -1,21 +1,40 @@
 use crate::{
     lexer::{token::*, tokentype::TokenType},
-    parser::expr::*, errors::{LoxError, RuntimeError::RuntimeErrorHandler, LoxErrorsTypes},
+    parser::{expr::*, stmt::*},
+    errors::{
+        LoxError,
+        RuntimeError::RuntimeErrorHandler, 
+        LoxErrorsTypes
+    },
 };
+use std::cell::RefCell;
+use super::environment::Environment;
 
 pub struct Interpreter {
+    environment: RefCell<Environment>,
     error_handler: RuntimeErrorHandler,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            error_handler: RuntimeErrorHandler::new()
+            error_handler: RuntimeErrorHandler::new(),
+            environment: RefCell::new(Environment::new())
         }
     }
 
+    pub fn interpret(&self, stmts: Vec<Box<Stmt>>) -> Result<(), LoxError> {
+        for stmt in stmts {
+            self.execute(&stmt)?;
+        }
+        Ok(())
+    }
     pub fn evaluate(&self, expr: &Expr) -> Result<Literal, LoxError> {
         expr.accept(self, 0 as u16)
+    }
+
+    pub fn execute(&self, stmt: &Stmt) -> Result<(), LoxError> {
+        stmt.accept(self, 0 as u16)
     }
 
     pub fn is_truthy(&self, right: &Literal) -> bool {
@@ -90,7 +109,7 @@ impl Interpreter {
     }
 }
 
-impl Visitor<Literal> for Interpreter {
+impl VisitorExpr<Literal> for Interpreter {
     fn visit_unary_expr(&self, expr: &UnaryExpr, _: u16) -> Result<Literal, LoxError> {
         let right = self.evaluate(&expr.right)?;
         
@@ -108,9 +127,7 @@ impl Visitor<Literal> for Interpreter {
         
         self.check_num_binary(&expr.operator, &left, &right)?;
         match expr.operator.token_type {
-            TokenType::Minus =>  {
-                self.check_arithmetic(&expr.operator, left - right)
-            },
+            TokenType::Minus => self.check_arithmetic(&expr.operator, left - right),
             TokenType::Slash => self.check_arithmetic(&expr.operator, left / right),
             TokenType::Star  => self.check_arithmetic(&expr.operator, left * right),
             TokenType::Plus  => self.check_arithmetic(&expr.operator, left + right),
@@ -132,7 +149,36 @@ impl Visitor<Literal> for Interpreter {
         self.evaluate(&expr.expression)
     }
 
-    fn visit_ternary_expr(&self, expr: &TernaryExpr, depth: u16) -> Result<Literal, LoxError> {
+    fn visit_ternary_expr(&self, expr: &TernaryExpr, _: u16) -> Result<Literal, LoxError> {
         self.evaluate_ternary(&expr) 
+    }
+
+    fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<Literal, LoxError> {
+        self.environment.borrow_mut().get(&expr.name)
+    }
+}
+
+impl VisitorStmt<()> for Interpreter {
+    fn visit_print_stmt(&self, stmt: &crate::parser::stmt::PrintStmt, _: u16) -> Result<(), LoxError> {
+        let value = self.evaluate(&stmt.expr)?;
+        value.print_value();
+        Ok(())
+    }
+
+    fn visit_expression_stmt(&self, stmt: &crate::parser::stmt::ExpressionStmt, _: u16) -> Result<(), LoxError> {
+        self.evaluate(&stmt.expr)?;
+        Ok(())
+    }
+
+    fn visit_let_stmt(&self, stmt: &LetStmt, _: u16) -> Result<(), LoxError> {
+        let val = if let Some(init) = &stmt.initializer {
+            self.evaluate(&init)?
+        } else {
+            Literal::None
+        };
+        self.environment
+            .borrow_mut()
+            .define(&stmt.name.lexeme, val);
+        Ok(())
     }
 }

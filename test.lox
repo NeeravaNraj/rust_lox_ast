@@ -1,15 +1,2 @@
-let name = "Mobs;
-
-/* comment */
-
-/* comment /* nested */ end */
-
-if name == "Mobs" {
-    print "Potato";
-}
-
-let i = 0;
-
-while i < 10 {
-    print name;
-}
+let num = 1;
+print num + 24;

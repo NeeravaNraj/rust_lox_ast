@@ -2,10 +2,9 @@ use core::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Sub, Mul, Div};
 
-use crate::errors::{LoxError, LoxErrorsTypes, LoxErrorHandler::LoxErrorHandler};
 use crate::lexer::tokentype::*;
 
-#[derive(Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Literal {
     Number(f64),
     Str(String),
@@ -107,9 +106,10 @@ impl Literal {
             Self::Str(str) => println!("{str}"),
             Self::Bool(bool) => println!("{bool}"),
             Self::None => println!("{}", self.to_string()),
-            Self::LiteralNone => () // This none is for internal use only
+            Self::LiteralNone => println!("{}", Literal::None.to_string()) 
         }
     }
+
 }
 
 impl Add<Literal> for Literal {
