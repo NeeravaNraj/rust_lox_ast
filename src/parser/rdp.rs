@@ -66,6 +66,17 @@ impl<'a> Parser<'a>{
         result
     }
 
+    fn block_stmt(&mut self) -> Result<Vec<Box<Stmt>>, LoxError> {
+        let mut stmts: Vec<Box<Stmt>> = Vec::new();
+
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            stmts.push(self.declaration()?);
+        }
+
+        self.consume(TokenType::RightBrace, LoxErrorsTypes::ParseError("Expected '}' after block".to_string()))?;
+        Ok(stmts)
+    }
+
     fn print_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after".to_string()))?;
@@ -81,6 +92,10 @@ impl<'a> Parser<'a>{
     fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
+        } 
+
+        if self.match_single_token(TokenType::LeftBrace) {
+            return Ok(Box::new(Stmt::Block(BlockStmt::new(self.block_stmt()?))));
         }
         self.expr_statement()
     }
@@ -222,8 +237,34 @@ impl<'a> Parser<'a>{
         Ok(expr)
     }
 
+    fn assignment(&mut self) -> Result<Box<Expr>, LoxError> {
+        let expr = self.ternary()?;
+
+        if self.match_single_token(TokenType::Assign) {
+            let token = self.previous();
+            let value = self.assignment()?;
+            
+            match *expr {
+                Expr::Variable(var) => {
+                    let name = var.name; 
+                    return Ok(Box::new(Expr::Assign(AssignExpr::new(name, value))));
+                },
+                _ => {
+                    return Err(
+                        self.error_handler.error(
+                            &token, 
+                            LoxErrorsTypes::ParseError("Invalid assignment target".to_string())
+                        )
+                    );
+                }
+            }
+        }
+
+        Ok(expr)
+    }
+
     fn expression(&mut self) -> Result<Box<Expr>, LoxError> {
-        self.ternary()
+        self.assignment()
     }
 
     fn is_at_end(&self) -> bool {
@@ -278,21 +319,20 @@ impl<'a> Parser<'a>{
             if self.previous().token_type == TokenType::Semicolon {
                 return;
             }
+            match self.peek().token_type {
+                TokenType::Class 
+                    | TokenType::DefFn
+                    | TokenType::Let
+                    | TokenType::For
+                    | TokenType::If
+                    | TokenType::Else
+                    | TokenType::Return
+                    | TokenType::Print
+                    | TokenType::While => return,
+                _ => ()
+            };
+
+            self.advance();
         }
-
-        match self.peek().token_type {
-            TokenType::Class => return,
-            TokenType::DefFn => return,
-            TokenType::Let => return,
-            TokenType::For => return,
-            TokenType::If => return,
-            TokenType::Else => return,
-            TokenType::Return => return,
-            TokenType::Print => return,
-            TokenType::While => return,
-            _ => ()
-        };
-
-        self.advance();
     }
 }

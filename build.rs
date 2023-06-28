@@ -10,6 +10,7 @@ fn main() -> io::Result<()> {
         "Unary ; operator: Token, right: Box<Expr>".to_string(),
         "Ternary ; left: Box<Expr>, operator: Token, middle: Box<Expr>, colon: Token, right: Box<Expr>".to_string(),
         "Variable ; name: Token".to_string(),
+        "Assign ; name: Token, value: Box<Expr>".to_string(),
     ];
 
     let expr_mods = vec![
@@ -21,6 +22,7 @@ fn main() -> io::Result<()> {
         "Expression ; expr: Box<Expr>".to_string(),
         "Print ; expr: Box<Expr>".to_string(),
         "Let ; name: Token, initializer: Option<Box<Expr>>".to_string(),
+        "Block ; statements: Vec<Box<Stmt>>".to_string(),
     ];
 
     let stmt_mods = vec![

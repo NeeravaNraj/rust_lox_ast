@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use super::environment::Environment;
 
 pub struct Interpreter {
-    environment: RefCell<Environment>,
+    environment: RefCell<RefCell<Environment>>,
     error_handler: RuntimeErrorHandler,
 }
 
@@ -19,7 +19,7 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             error_handler: RuntimeErrorHandler::new(),
-            environment: RefCell::new(Environment::new())
+            environment: RefCell::new(RefCell::new(Environment::new()))
         }
     }
 
@@ -107,6 +107,17 @@ impl Interpreter {
             _ => Err(self.error_handler.error(operator, LoxErrorsTypes::RuntimeError("failed to perform comparison".to_string())))
         }
     }
+
+    fn execute_block(&self, stmts: &[Box<Stmt>], enclosing: Environment) -> Result<(), LoxError> {
+        let prev = self.environment.replace(RefCell::new(enclosing));
+
+        stmts
+            .iter()
+            .try_for_each(|stmt| self.execute(stmt))?;
+        
+        self.environment.replace(prev);
+        Ok(())
+    }
 }
 
 impl VisitorExpr<Literal> for Interpreter {
@@ -154,7 +165,17 @@ impl VisitorExpr<Literal> for Interpreter {
     }
 
     fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<Literal, LoxError> {
-        self.environment.borrow_mut().get(&expr.name)
+        self.environment.borrow().borrow().get(&expr.name)
+    }
+
+    fn visit_assign_expr(&self, expr: &AssignExpr, _: u16) -> Result<Literal, LoxError> {
+        let value = self.evaluate(&expr.value)?;
+        self.environment
+            .borrow_mut()
+            .borrow_mut()
+            .mutate(&expr.name, value.dup())?;
+
+        Ok(value)
     }
 }
 
@@ -178,7 +199,14 @@ impl VisitorStmt<()> for Interpreter {
         };
         self.environment
             .borrow_mut()
-            .define(&stmt.name.lexeme, val);
+            .borrow_mut()
+            .define(&stmt.name, val)?;
+        Ok(())
+    }
+
+    fn visit_block_stmt(&self, stmt: &BlockStmt, _: u16) -> Result<(), LoxError> {
+        let e = Environment::new_enclosing(self.environment.borrow().clone());
+        self.execute_block(&stmt.statements, e)?;
         Ok(())
     }
 }

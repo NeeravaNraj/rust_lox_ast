@@ -5,6 +5,7 @@ use super::{
     LoxErrorsTypes,
 };
 
+#[derive(Clone)]
 pub struct LoxErrorHandler;
 
 impl LoxErrorHandler {

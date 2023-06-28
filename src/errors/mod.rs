@@ -1,9 +1,13 @@
+#[allow(non_snake_case)]
 pub mod ParseError;
+#[allow(non_snake_case)]
 pub mod LoxErrorHandler;
+#[allow(non_snake_case)]
 pub mod RuntimeError;
 
 use crate::lexer::token::Token;
 
+#[allow(dead_code)]
 pub enum LoxErrorsTypes {
     LexerError(String),
     SyntaxError(String),
@@ -46,8 +50,10 @@ impl ToString for LoxErrorsTypes {
     }
 }
 
+#[allow(dead_code)]
 pub enum LoxWarningTypes{}
 
+#[allow(dead_code)]
 pub struct LoxWarning {
     pub has_warning: bool,
     pub warning_type: LoxWarningTypes,

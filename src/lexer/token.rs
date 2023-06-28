@@ -109,7 +109,16 @@ impl Literal {
             Self::LiteralNone => println!("{}", Literal::None.to_string()) 
         }
     }
-
+    
+    pub fn dup(&self) -> Self{
+        match self {
+            Self::Number(num) => Self::Number(num.to_owned()),
+            Self::Str(str) => Self::Str(str.to_string()),
+            Self::Bool(bool) => Self::Bool(bool.to_owned()),
+            Self::None => Self::None,
+            Self::LiteralNone => Self::LiteralNone
+        }
+    }
 }
 
 impl Add<Literal> for Literal {

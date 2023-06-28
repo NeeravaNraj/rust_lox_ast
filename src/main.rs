@@ -1,16 +1,14 @@
-#[warn(non_snake_case)]
-use std::{env, fs, io, process};
 mod errors;
 mod interpreter;
 mod lexer;
 mod parser;
 mod tools;
 
+use std::{env, fs, io, process};
 use errors::LoxErrorHandler::LoxErrorHandler;
 use interpreter::interpreter::Interpreter;
 use lexer::scanner::*;
 use parser::rdp::Parser;
-use tools::ast_print::AstPrinter;
 
 struct Lox {
     error: LoxErrorHandler,
@@ -30,9 +28,7 @@ impl Lox {
         if let Ok(tokens) = scanner.scan_tokens() {
             let mut parser = Parser::new(tokens);
 
-            // let ast_printer = AstPrinter::new();
             if let Ok(stmts) = parser.parse() {
-                // ast_printer.print(&expr);
                 if let Err(err) = self.interpreter.interpret(stmts) {
                     if err.has_error {}
                 };

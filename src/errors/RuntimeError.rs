@@ -6,6 +6,7 @@ use super::{
 };
 
 
+#[derive(Clone)]
 pub struct RuntimeErrorHandler {
     handler: LoxErrorHandler,
 }
