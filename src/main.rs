@@ -13,17 +13,19 @@ use parser::rdp::Parser;
 struct Lox {
     error: LoxErrorHandler,
     interpreter: Interpreter,
+    is_repl: bool
 }
 
 impl Lox {
     fn new() -> Lox {
         Lox {
             error: LoxErrorHandler::new(),
-            interpreter: Interpreter::new()
+            interpreter: Interpreter::new(),
+            is_repl: false
         }
     }
 
-    fn run(&self, file: &String) {
+    fn run(&mut self, file: &String) {
         let mut scanner = Scanner::new(file, &self.error);
         if let Ok(tokens) = scanner.scan_tokens() {
             let mut parser = Parser::new(tokens);
@@ -36,12 +38,17 @@ impl Lox {
         }
     }
 
-    fn run_file(&self, path: &String) {
+    fn run_file(&mut self, path: &String) {
         let bytes = fs::read_to_string(path).unwrap_or_else(|error| {
             eprintln!("Error while opening file: {error}");
             process::exit(1);
         });
         self.run(&bytes);
+    }
+
+    pub fn set_is_repl(&mut self, is: bool) {
+        self.interpreter.set_is_repl(is);
+        self.is_repl = is;
     }
 
     fn run_prompt(&mut self) {
@@ -69,6 +76,7 @@ fn main() {
 
     let mut lox = Lox::new();
     if args.len() == 1 {
+        lox.set_is_repl(true);
         lox.run_prompt();
     } else if args.len() > 1 {
         lox.run_file(&args[1]);

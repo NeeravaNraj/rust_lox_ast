@@ -13,24 +13,37 @@ use super::environment::Environment;
 pub struct Interpreter {
     environment: RefCell<RefCell<Environment>>,
     error_handler: RuntimeErrorHandler,
+    is_repl: bool,
+    is_single_expr: RefCell<bool>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
             error_handler: RuntimeErrorHandler::new(),
-            environment: RefCell::new(RefCell::new(Environment::new()))
+            environment: RefCell::new(RefCell::new(Environment::new())),
+            is_repl: false,
+            is_single_expr: RefCell::new(false),
         }
     }
 
-    pub fn interpret(&self, stmts: Vec<Box<Stmt>>) -> Result<(), LoxError> {
+    pub fn interpret(&mut self, stmts: Vec<Box<Stmt>>) -> Result<(), LoxError> {
+        if stmts.len() == 1 {
+            if let Some(stmt) = stmts.get(0) {
+                match **stmt {
+                    Stmt::Expression(_) => self.is_single_expr.replace(true),
+                    _ => self.is_single_expr.replace(false)
+                };
+            }
+        }
         for stmt in stmts {
             self.execute(&stmt)?;
         }
         Ok(())
     }
     pub fn evaluate(&self, expr: &Expr) -> Result<Literal, LoxError> {
-        expr.accept(self, 0 as u16)
+        let val = expr.accept(self, 0 as u16)?;
+        Ok(val)
     }
 
     pub fn execute(&self, stmt: &Stmt) -> Result<(), LoxError> {
@@ -66,9 +79,13 @@ impl Interpreter {
             TokenType::Minus |
             TokenType::Slash |
             TokenType::Star  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be numbers for".to_string()))),
-            TokenType::Plus  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings  for".to_string()))),
+            TokenType::Plus  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings for".to_string()))),
             _ => Ok(())
         }
+    }
+
+    pub fn set_is_repl(&mut self, is: bool) {
+        self.is_repl = is;
     }
 
     fn check_arithmetic(&self, operator: &Token, expr: Result<Literal, String>) -> Result<Literal, LoxError> {
@@ -165,11 +182,20 @@ impl VisitorExpr<Literal> for Interpreter {
     }
 
     fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<Literal, LoxError> {
-        self.environment.borrow().borrow().get(&expr.name)
+        let val = self.environment.borrow().borrow().get(&expr.name)?;
+        if val == Literal::LiteralNone {
+            return Err(self.error_handler.error(
+                &expr.name,
+                LoxErrorsTypes::RuntimeError("Undefined variable".to_string()),
+            ));
+        }
+
+        Ok(val)
     }
 
     fn visit_assign_expr(&self, expr: &AssignExpr, _: u16) -> Result<Literal, LoxError> {
         let value = self.evaluate(&expr.value)?;
+        self.is_single_expr.replace(false);
         self.environment
             .borrow_mut()
             .borrow_mut()
@@ -180,14 +206,17 @@ impl VisitorExpr<Literal> for Interpreter {
 }
 
 impl VisitorStmt<()> for Interpreter {
-    fn visit_print_stmt(&self, stmt: &crate::parser::stmt::PrintStmt, _: u16) -> Result<(), LoxError> {
+    fn visit_print_stmt(&self, stmt: &PrintStmt, _: u16) -> Result<(), LoxError> {
         let value = self.evaluate(&stmt.expr)?;
         value.print_value();
         Ok(())
     }
 
-    fn visit_expression_stmt(&self, stmt: &crate::parser::stmt::ExpressionStmt, _: u16) -> Result<(), LoxError> {
-        self.evaluate(&stmt.expr)?;
+    fn visit_expression_stmt(&self, stmt: &ExpressionStmt, _: u16) -> Result<(), LoxError> {
+        let val = self.evaluate(&stmt.expr)?;
+        if self.is_repl && *self.is_single_expr.borrow() {
+            val.print_value();
+        }
         Ok(())
     }
 
@@ -195,7 +224,7 @@ impl VisitorStmt<()> for Interpreter {
         let val = if let Some(init) = &stmt.initializer {
             self.evaluate(&init)?
         } else {
-            Literal::None
+            Literal::LiteralNone
         };
         self.environment
             .borrow_mut()
@@ -207,6 +236,16 @@ impl VisitorStmt<()> for Interpreter {
     fn visit_block_stmt(&self, stmt: &BlockStmt, _: u16) -> Result<(), LoxError> {
         let e = Environment::new_enclosing(self.environment.borrow().clone());
         self.execute_block(&stmt.statements, e)?;
+        Ok(())
+    }
+
+    fn visit_if_stmt(&self, stmt: &IfStmt, _: u16) -> Result<(), LoxError> {
+        let cond = self.evaluate(&stmt.condition)?;
+        if self.is_truthy(&cond) {
+            self.execute(&stmt.then_branch)?;
+        } else if let Some(else_branch) = &stmt.else_branch {
+            self.execute(&else_branch)?;
+        }
         Ok(())
     }
 }

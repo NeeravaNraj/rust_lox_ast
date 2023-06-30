@@ -89,6 +89,22 @@ impl<'a> Parser<'a>{
         Ok(Box::new(Stmt::Expression(ExpressionStmt::new(expr))))
     }
 
+    fn if_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        self.consume(TokenType::LeftParen, LoxErrorsTypes::SyntaxError("Expected '(' after".to_string()))?;
+
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expected ')' after".to_string()))?;
+
+        let then_branch = self.statement()?;
+        let mut else_branch: Option<Box<Stmt>> = None;
+
+        if self.match_single_token(TokenType::Else) {
+            else_branch = Some(self.statement()?);
+        }
+
+        Ok(Box::new(Stmt::If(IfStmt::new(condition, then_branch, else_branch))))
+    }
+
     fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
@@ -96,6 +112,10 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::LeftBrace) {
             return Ok(Box::new(Stmt::Block(BlockStmt::new(self.block_stmt()?))));
+        }
+
+        if self.match_single_token(TokenType::If) {
+            return self.if_statement();
         }
         self.expr_statement()
     }

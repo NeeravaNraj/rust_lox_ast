@@ -23,6 +23,7 @@ fn main() -> io::Result<()> {
         "Print ; expr: Box<Expr>".to_string(),
         "Let ; name: Token, initializer: Option<Box<Expr>>".to_string(),
         "Block ; statements: Vec<Box<Stmt>>".to_string(),
+        "If ; condition: Box<Expr>, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>>".to_string(),
     ];
 
     let stmt_mods = vec![

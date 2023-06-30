@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     errors::{LoxError, LoxErrorsTypes, RuntimeError::RuntimeErrorHandler},
@@ -59,7 +59,7 @@ impl Environment {
         if let Some(literal) = self.env.get(name.lexeme.as_str()) {
             return Ok(literal.clone());
         } else if let Some(enc) = &self.enclosing {
-            return enc.borrow_mut().get(name);
+            return enc.borrow().get(name);
         }
         Err(self.error_handler.error(
             name,
