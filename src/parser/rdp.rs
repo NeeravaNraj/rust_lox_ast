@@ -115,6 +115,58 @@ impl<'a> Parser<'a>{
         Ok(Box::new(Stmt::While(WhileStmt::new(condition, body))))
     }
 
+    fn for_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        self.consume(TokenType::LeftParen, LoxErrorsTypes::SyntaxError("Expected '(' after".to_string()))?;
+        
+        let mut initializer: Option<Box<Stmt>> = None;
+
+        if self.match_single_token(TokenType::Let) {
+            initializer = Some(self.var_declaration()?);
+        } else {
+            initializer = Some(self.expr_statement()?);
+        }
+
+        let mut condition: Option<Box<Expr>> = None;
+        if !self.check(TokenType::Semicolon) {
+            condition = Some(self.expression()?);
+        }
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after loop condition".to_string()))?;
+        
+        let mut increment: Option<Box<Expr>> = None;
+        if !self.check(TokenType::RightParen) {
+            increment = Some(self.expression()?);
+        }
+
+        self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expected ')' after for clauses".to_string()))?;
+
+        let mut body = self.statement()?;
+
+        if increment.is_some() {
+            let stmts: Vec<Box<Stmt>> = vec![
+                body, 
+                Box::new(Stmt::Expression(ExpressionStmt::new(increment.unwrap())))
+            ];
+            body = Box::new(Stmt::Block(BlockStmt::new(stmts)))
+        }
+
+        if !condition.is_some() {
+            condition = Some(Box::new(Expr::Literal(LiteralExpr::new(Literal::Bool(true)))));
+        }
+        body = Box::new(Stmt::While(WhileStmt::new(condition.unwrap(), body)));
+
+        if initializer.is_some() {
+            let stmts = vec![initializer.unwrap(), body];
+            body = Box::new(Stmt::Block(BlockStmt::new(stmts)));
+        }
+        Ok(body)
+    }
+
+    fn break_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let tok = self.previous().dup();
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after statement".to_string()))?;
+        return Ok(Box::new(Stmt::Break(BreakStmt::new(tok))));
+    }
+
     fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
@@ -130,6 +182,14 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::While) {
             return self.while_statement();
+        }
+
+        if self.match_single_token(TokenType::For) {
+            return self.for_statement();
+        }
+        
+        if self.match_single_token(TokenType::Break) {
+            return self.break_statement();
         }
         self.expr_statement()
     }

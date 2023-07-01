@@ -305,6 +305,7 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("this"), TokenType::This);
         hmap.insert(String::from("true"), TokenType::True);
         hmap.insert(String::from("false"), TokenType::False);
+        hmap.insert(String::from("break"), TokenType::Break);
     }
 
     fn get_literal_type(&self, token: &TokenType) -> Literal {

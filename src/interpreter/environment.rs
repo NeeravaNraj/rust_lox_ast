@@ -6,6 +6,8 @@ use crate::{
 };
 #[derive(Clone)]
 pub struct Environment {
+    pub loop_started: bool,
+    pub break_encountered: bool,
     env: HashMap<String, Literal>,
     error_handler: RuntimeErrorHandler,
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -17,6 +19,8 @@ impl Environment {
             env: HashMap::new(),
             error_handler: RuntimeErrorHandler::new(),
             enclosing: None,
+            loop_started: false,
+            break_encountered: false
         }
     }
 
@@ -25,6 +29,8 @@ impl Environment {
             env: HashMap::new(),
             error_handler: RuntimeErrorHandler::new(),
             enclosing: Some(env),
+            loop_started: false,
+            break_encountered: false
         }
     }
 

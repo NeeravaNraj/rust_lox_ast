@@ -128,11 +128,16 @@ impl Interpreter {
 
     fn execute_block(&self, stmts: &[Box<Stmt>], enclosing: Environment) -> Result<(), LoxError> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
-
+        self.environment.borrow_mut().borrow_mut().loop_started = prev.borrow().loop_started;
         stmts
             .iter()
-            .try_for_each(|stmt| self.execute(stmt))?;
-        
+            .try_for_each(|stmt| {
+                if self.environment.borrow().borrow().break_encountered {
+                    prev.borrow_mut().break_encountered = self.environment.borrow().borrow().break_encountered;
+                    return Ok(())
+                }
+                self.execute(stmt)
+            })?;
         self.environment.replace(prev);
         Ok(())
     }
@@ -267,9 +272,27 @@ impl VisitorStmt<()> for Interpreter {
     }
 
     fn visit_while_stmt(&self, stmt: &WhileStmt, _: u16) -> Result<(), LoxError> {
+        self.environment.borrow_mut().borrow_mut().loop_started = true;
         while self.is_truthy(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.body)?;
+            if self.environment.borrow().borrow().break_encountered {
+                self.environment.borrow_mut().borrow_mut().loop_started = false;
+                self.environment.borrow_mut().borrow_mut().break_encountered = false;
+                return Ok(());
+            }
         }
         Ok(()) 
+    }
+
+    fn visit_break_stmt(&self, stmt: &BreakStmt, _: u16) -> Result<(), LoxError> {
+        if self.environment.borrow().borrow().loop_started {
+            self.environment.borrow_mut().borrow_mut().break_encountered = true;
+            return Ok(());
+        } else {
+            return Err(self.error_handler.error(
+                &stmt.token, 
+                LoxErrorsTypes::RuntimeError("Found 'break' outside loop block".to_string())
+            ));
+        }
     }
 }

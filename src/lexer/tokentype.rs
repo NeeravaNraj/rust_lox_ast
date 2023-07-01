@@ -47,6 +47,7 @@ pub enum TokenType {
     Let,
     None,
     While,
+    Break,
 
     EOF,
 }
