@@ -8,10 +8,11 @@ use crate::{
     },
 };
 use std::cell::RefCell;
+use std::rc::Rc;
 use super::environment::Environment;
 
 pub struct Interpreter {
-    environment: RefCell<RefCell<Environment>>,
+    environment: RefCell<Rc<RefCell<Environment>>>,
     error_handler: RuntimeErrorHandler,
     is_repl: bool,
     is_single_expr: RefCell<bool>,
@@ -21,7 +22,7 @@ impl Interpreter {
     pub fn new() -> Self {
         Self {
             error_handler: RuntimeErrorHandler::new(),
-            environment: RefCell::new(RefCell::new(Environment::new())),
+            environment: RefCell::new(Rc::new(RefCell::new(Environment::new()))),
             is_repl: false,
             is_single_expr: RefCell::new(false),
         }
@@ -71,7 +72,7 @@ impl Interpreter {
     fn check_num_binary(&self, operator: &Token, left: &Literal, right: &Literal) -> Result<(), LoxError> {
         if left.get_typename() == "Number" && right.get_typename() == "Number" {
             return Ok(());
-        } else if left.get_typename() == "String" && right.get_typename() == "String" {
+        } else if left.get_typename() == "String" || right.get_typename() == "String" {
             return  Ok(());
         }
 
@@ -126,7 +127,7 @@ impl Interpreter {
     }
 
     fn execute_block(&self, stmts: &[Box<Stmt>], enclosing: Environment) -> Result<(), LoxError> {
-        let prev = self.environment.replace(RefCell::new(enclosing));
+        let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
 
         stmts
             .iter()
@@ -203,6 +204,22 @@ impl VisitorExpr<Literal> for Interpreter {
 
         Ok(value)
     }
+
+    fn visit_logical_expr(&self, expr: &LogicalExpr, _: u16) -> Result<Literal, LoxError> {
+        let left = self.evaluate(&expr.left)?;
+
+        if expr.operator.token_type == TokenType::Or {
+            if self.is_truthy(&left) {
+                return Ok(left);
+            }
+        } else {
+            if !self.is_truthy(&left) {
+                return Ok(left);
+            }
+        }
+
+        Ok(self.evaluate(&expr.right)?)
+    }
 }
 
 impl VisitorStmt<()> for Interpreter {
@@ -247,5 +264,12 @@ impl VisitorStmt<()> for Interpreter {
             self.execute(&else_branch)?;
         }
         Ok(())
+    }
+
+    fn visit_while_stmt(&self, stmt: &WhileStmt, _: u16) -> Result<(), LoxError> {
+        while self.is_truthy(&self.evaluate(&stmt.condition)?) {
+            self.execute(&stmt.body)?;
+        }
+        Ok(()) 
     }
 }

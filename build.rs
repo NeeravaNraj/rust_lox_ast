@@ -5,6 +5,7 @@ use ast_gen::*;
 fn main() -> io::Result<()> {
     let expr_types = vec![
         "Binary ; left: Box<Expr>, operator: Token, right: Box<Expr>".to_string(),
+        "Logical ; left: Box<Expr>, operator: Token, right: Box<Expr>".to_string(),
         "Grouping ; expression: Box<Expr>".to_string(),
         "Literal ; value: Literal".to_string(),
         "Unary ; operator: Token, right: Box<Expr>".to_string(),
@@ -24,6 +25,7 @@ fn main() -> io::Result<()> {
         "Let ; name: Token, initializer: Option<Box<Expr>>".to_string(),
         "Block ; statements: Vec<Box<Stmt>>".to_string(),
         "If ; condition: Box<Expr>, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>>".to_string(),
+        "While ; condition: Box<Expr>, body: Box<Stmt>".to_string(),
     ];
 
     let stmt_mods = vec![

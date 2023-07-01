@@ -20,11 +20,11 @@ impl Environment {
         }
     }
 
-    pub fn new_enclosing(env: RefCell<Environment>) -> Self {
+    pub fn new_enclosing(env: Rc<RefCell<Environment>>) -> Self {
         Self {
             env: HashMap::new(),
             error_handler: RuntimeErrorHandler::new(),
-            enclosing: Some(Rc::new(env)),
+            enclosing: Some(env),
         }
     }
 
@@ -40,19 +40,19 @@ impl Environment {
     }
 
     pub fn mutate(&mut self, name: &Token, val: Literal) -> Result<(), LoxError> {
-        if !self.env.contains_key(&name.lexeme) {
-            return Err(self.error_handler.error(
-                name,
-                LoxErrorsTypes::RuntimeError("Cannot mutate undefined variable".to_string()),
-            ));
-        }
-        if self.enclosing.is_some() {
+        if self.env.contains_key(&name.lexeme) {
+            self.env.insert(name.lexeme.to_string(), val);
+            return Ok(());
+        } else if self.enclosing.is_some() {
             let enc = self.enclosing.as_mut().unwrap();
             enc.borrow_mut().mutate(name, val)?;
             return Ok(());
         }
-        self.env.insert(name.lexeme.to_string(), val);
-        Ok(())
+
+        return Err(self.error_handler.error(
+            name,
+            LoxErrorsTypes::RuntimeError("Cannot mutate undefined variable".to_string()),
+        ));
     }
 
     pub fn get(&self, name: &Token) -> Result<Literal, LoxError> {

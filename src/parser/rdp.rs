@@ -105,6 +105,16 @@ impl<'a> Parser<'a>{
         Ok(Box::new(Stmt::If(IfStmt::new(condition, then_branch, else_branch))))
     }
 
+    fn while_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        self.consume(TokenType::LeftParen, LoxErrorsTypes::SyntaxError("Expected '(' after".to_string()))?;
+
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expected ')' after".to_string()))?;
+
+        let body = self.statement()?;
+        Ok(Box::new(Stmt::While(WhileStmt::new(condition, body))))
+    }
+
     fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
@@ -116,6 +126,10 @@ impl<'a> Parser<'a>{
 
         if self.match_single_token(TokenType::If) {
             return self.if_statement();
+        }
+
+        if self.match_single_token(TokenType::While) {
+            return self.while_statement();
         }
         self.expr_statement()
     }
@@ -241,8 +255,31 @@ impl<'a> Parser<'a>{
         Ok(expr)
     }
 
+    fn and(&mut self) -> Result<Box<Expr>, LoxError> {
+        let mut expr = self.equality()?;
+
+        while self.match_single_token(TokenType::And) {
+            let op = self.previous();
+            let right = self.equality()?;
+            expr = Box::new(Expr::Logical(LogicalExpr::new(expr, op, right)));
+        }
+
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Box<Expr>, LoxError> {
+        let mut expr = self.and()?;
+        
+        while self.match_single_token(TokenType::Or) {
+            let op = self.previous();
+            let right = self.equality()?;
+            expr = Box::new(Expr::Logical(LogicalExpr::new(expr, op, right)));
+        }
+        Ok(expr) 
+    }
+
     fn ternary(&mut self) -> Result<Box<Expr>, LoxError> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.match_single_token(TokenType::QuestionMark) {
             let operator = self.tokens.get(self.curr - 1).unwrap().dup();

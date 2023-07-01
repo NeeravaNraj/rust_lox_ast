@@ -69,6 +69,16 @@ impl Literal {
         panic!("Recieved {} instead of \"Literal::Number()\"", self.to_string());
     }
 
+    pub fn as_value_string(&self) -> String {
+        match self {
+            Self::None => "none".to_string(),
+            Self::Bool(bool) => bool.to_string(),
+            Self::Str(str) => str.to_string(),
+            Self::Number(num) => num.to_string(),
+            _ => "none".to_string()
+        }
+    }
+
     pub fn unwrap_str(&self) -> String {
         if let Literal::Str(string) = self {
             return string.to_string();
@@ -87,6 +97,8 @@ impl Literal {
 
     pub fn cmp_type(&self, rhs: &Self) -> bool {
         if self.get_typename() == rhs.get_typename() {
+            return true;
+        } else if self.get_typename() == "String" || rhs.get_typename() == "String" {
             return true;
         }
         false
@@ -126,7 +138,9 @@ impl Add<Literal> for Literal {
     fn add(self, rhs: Literal) -> Self::Output {
         if self.cmp_type(&rhs) {
             if let Literal::Str(str) = self {
-                return Ok(Literal::Str(str + &rhs.unwrap_str()));
+                return Ok(Literal::Str(str + &rhs.as_value_string()));
+            } else if let Literal::Str(str) = rhs {
+                return Ok(Literal::Str(self.as_value_string() + &str));
             } else if let Literal::Number(num) = self {
                 return Ok(Literal::Number(num + &rhs.unwrap_number()));
             }
