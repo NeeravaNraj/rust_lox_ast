@@ -48,6 +48,7 @@ pub enum TokenType {
     None,
     While,
     Break,
+    Continue,
 
     EOF,
 }

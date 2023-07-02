@@ -134,7 +134,11 @@ impl Interpreter {
             .try_for_each(|stmt| {
                 if self.environment.borrow().borrow().break_encountered {
                     prev.borrow_mut().break_encountered = self.environment.borrow().borrow().break_encountered;
-                    return Ok(())
+                    return Ok(());
+                }
+                if self.environment.borrow().borrow().continue_encountered {
+                    prev.borrow_mut().continue_encountered = self.environment.borrow().borrow().continue_encountered;
+                    return Ok(());
                 }
                 self.execute(stmt)
             })?;
@@ -275,10 +279,16 @@ impl VisitorStmt<()> for Interpreter {
         self.environment.borrow_mut().borrow_mut().loop_started = true;
         while self.is_truthy(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.body)?;
+
             if self.environment.borrow().borrow().break_encountered {
                 self.environment.borrow_mut().borrow_mut().loop_started = false;
                 self.environment.borrow_mut().borrow_mut().break_encountered = false;
-                return Ok(());
+                break;
+            }
+
+            if self.environment.borrow().borrow().continue_encountered {
+                self.environment.borrow_mut().borrow_mut().continue_encountered = false;
+                continue;
             }
         }
         Ok(()) 
@@ -288,11 +298,21 @@ impl VisitorStmt<()> for Interpreter {
         if self.environment.borrow().borrow().loop_started {
             self.environment.borrow_mut().borrow_mut().break_encountered = true;
             return Ok(());
-        } else {
-            return Err(self.error_handler.error(
-                &stmt.token, 
-                LoxErrorsTypes::RuntimeError("Found 'break' outside loop block".to_string())
-            ));
         }
+        Err(self.error_handler.error(
+            &stmt.token, 
+            LoxErrorsTypes::RuntimeError("Found 'break' outside loop block".to_string())
+        ))
+    }
+
+    fn visit_continue_stmt(&self, stmt: &ContinueStmt, _: u16) -> Result<(), LoxError> {
+        if self.environment.borrow().borrow().loop_started {
+            self.environment.borrow_mut().borrow_mut().continue_encountered = true;
+            return Ok(());
+        }
+        Err(self.error_handler.error(
+            &stmt.token, 
+            LoxErrorsTypes::RuntimeError("Found 'continue' outside loop block".to_string())
+        ))
     }
 }

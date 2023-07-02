@@ -162,9 +162,15 @@ impl<'a> Parser<'a>{
     }
 
     fn break_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
-        let tok = self.previous().dup();
+        let tok = self.previous();
         self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after statement".to_string()))?;
-        return Ok(Box::new(Stmt::Break(BreakStmt::new(tok))));
+        Ok(Box::new(Stmt::Break(BreakStmt::new(tok))))
+    }
+
+    fn continue_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
+        let tok = self.previous();
+        self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after statement".to_string()))?;
+        Ok(Box::new(Stmt::Continue(ContinueStmt::new(tok))))
     }
 
     fn statement(&mut self) -> Result<Box<Stmt>, LoxError> {
@@ -190,6 +196,10 @@ impl<'a> Parser<'a>{
         
         if self.match_single_token(TokenType::Break) {
             return self.break_statement();
+        }
+
+        if self.match_single_token(TokenType::Continue) {
+            return self.continue_statement();
         }
         self.expr_statement()
     }

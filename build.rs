@@ -27,6 +27,7 @@ fn main() -> io::Result<()> {
         "If ; condition: Box<Expr>, then_branch: Box<Stmt>, else_branch: Option<Box<Stmt>>".to_string(),
         "While ; condition: Box<Expr>, body: Box<Stmt>".to_string(),
         "Break ; token: Token".to_string(),
+        "Continue ; token: Token".to_string(),
     ];
 
     let stmt_mods = vec![

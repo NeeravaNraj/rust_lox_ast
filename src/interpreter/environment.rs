@@ -8,6 +8,7 @@ use crate::{
 pub struct Environment {
     pub loop_started: bool,
     pub break_encountered: bool,
+    pub continue_encountered: bool,
     env: HashMap<String, Literal>,
     error_handler: RuntimeErrorHandler,
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -20,7 +21,8 @@ impl Environment {
             error_handler: RuntimeErrorHandler::new(),
             enclosing: None,
             loop_started: false,
-            break_encountered: false
+            break_encountered: false,
+            continue_encountered: false,
         }
     }
 
@@ -30,6 +32,7 @@ impl Environment {
             error_handler: RuntimeErrorHandler::new(),
             enclosing: Some(env),
             loop_started: false,
+            continue_encountered: false,
             break_encountered: false
         }
     }
