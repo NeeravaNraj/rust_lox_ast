@@ -1,5 +1,6 @@
 use crate::{
-    lexer::token::{Token, Literal},
+    lexer::token::Token,
+    lexer::literal::*,
     lexer::tokentype::TokenType,
     parser::expr::{Expr, BinaryExpr, UnaryExpr, LiteralExpr, GroupingExpr},
     errors::{
@@ -267,12 +268,10 @@ impl<'a> Parser<'a>{
         let mut args: Vec<Box<Expr>> = Vec::new();
         if !self.check(TokenType::RightParen) {
             if args.len() >= 255 {
-                return Err(
-                    self.error_handler.error(
-                        self.peek(), 
-                        LoxErrorsTypes::ParseError(
-                            "Cannot have more than 255 arguments".to_string()
-                        )
+                self.error_handler.error(
+                    self.peek(), 
+                    LoxErrorsTypes::ParseError(
+                        "Cannot have more than 255 arguments".to_string()
                     )
                 );
             }

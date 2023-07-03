@@ -2,7 +2,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     errors::{LoxError, LoxErrorsTypes, RuntimeError::RuntimeErrorHandler},
-    lexer::token::{Literal, Token},
+    lexer::token::Token,
+    lexer::literal::*
 };
 #[derive(Clone)]
 pub struct Environment {

@@ -25,7 +25,7 @@ impl LoxErrorHandler {
     }
 
     pub fn report(&self, error: &LoxError) {
-        eprintln!("[Lox] (line:{}) {}: {} {}", 
+        eprintln!("[Lox] line:{} {}: {} {}", 
                   error.line,
                   LoxErrorsTypes::confirm_error_type(&error.error_type), 
                   LoxErrorsTypes::get_error_message(&error.error_type),

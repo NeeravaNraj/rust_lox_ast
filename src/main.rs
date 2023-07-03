@@ -3,6 +3,7 @@ mod interpreter;
 mod lexer;
 mod parser;
 mod tools;
+mod LoxLib;
 
 use std::{env, fs, io, process};
 use errors::LoxErrorHandler::LoxErrorHandler;

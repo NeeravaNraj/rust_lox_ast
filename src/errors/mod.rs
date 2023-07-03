@@ -5,7 +5,7 @@ pub mod LoxErrorHandler;
 #[allow(non_snake_case)]
 pub mod RuntimeError;
 
-use crate::lexer::token::Token;
+use crate::lexer::{tokentype::TokenType, token::Token};
 
 #[allow(dead_code)]
 pub enum LoxErrorsTypes {
@@ -13,7 +13,8 @@ pub enum LoxErrorsTypes {
     SyntaxError(String),
     ParseError(String),
     RuntimeError(String),
-    TypeError(String)
+    TypeError(String),
+    SystemError(String),
 }
 
 impl LoxErrorsTypes {
@@ -23,7 +24,8 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::ParseError(string)   => string.to_string(),
             LoxErrorsTypes::SyntaxError(string)  => string.to_string(),
             LoxErrorsTypes::RuntimeError(string) => string.to_string(),
-            LoxErrorsTypes::TypeError(string)    => string.to_string()
+            LoxErrorsTypes::TypeError(string)    => string.to_string(),
+            LoxErrorsTypes::SystemError(string)  => string.to_string(),
         }
     }
 
@@ -34,6 +36,7 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::ParseError(_)   => LoxErrorsTypes::ParseError("".to_string()).to_string(),
             LoxErrorsTypes::RuntimeError(_) => LoxErrorsTypes::RuntimeError("".to_string()).to_string(),
             LoxErrorsTypes::TypeError(_)    => LoxErrorsTypes::TypeError("".to_string()).to_string(),
+            LoxErrorsTypes::SystemError(_)  => LoxErrorsTypes::SystemError("".to_string()).to_string()
         }
     }
 }
@@ -46,6 +49,7 @@ impl ToString for LoxErrorsTypes {
             Self::SyntaxError(_)       => "SyntaxError".to_string(),
             Self::RuntimeError(_)      => "RuntimeError".to_string(),
             Self::TypeError(_)         => "TypeError".to_string(),
+            Self::SystemError(_)       => "SystemError".to_string()
         }
     }
 }
@@ -82,4 +86,18 @@ impl LoxError {
             has_error,
         }
     }
+    pub fn system_error(message: &str) -> LoxError{
+        let err = LoxError::new(LoxErrorsTypes::SystemError(message.to_string()), None, 0, true);
+        LoxError::report(&err);
+        err
+    }
+
+    pub fn report(error: &LoxError) {
+        eprintln!("[Lox] (line:{}) {}: {}", 
+              error.line,
+              LoxErrorsTypes::confirm_error_type(&error.error_type), 
+              LoxErrorsTypes::get_error_message(&error.error_type),
+        );
+    }
 }
+

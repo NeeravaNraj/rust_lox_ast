@@ -1,28 +1,47 @@
-use crate::{
-    lexer::{token::*, tokentype::TokenType},
-    parser::{expr::*, stmt::*},
-    errors::{
-        LoxError,
-        RuntimeError::RuntimeErrorHandler, 
-        LoxErrorsTypes
-    },
+use super::{
+    environment::Environment,
+    LoxCallable::{Func, LoxCallable},
 };
-use std::{cell::RefCell, ops::{Add, Sub, Div, Mul}};
+use crate::{
+    errors::{LoxError, LoxErrorsTypes, RuntimeError::RuntimeErrorHandler},
+    lexer::{literal::*, token::*, tokentype::TokenType},
+    parser::{expr::*, stmt::*},
+    LoxLib::LoxNatives::Clock
+};
 use std::rc::Rc;
-use super::environment::Environment;
+use std::{
+    cell::RefCell,
+    ops::{Add, Div, Mul, Sub},
+};
 
 pub struct Interpreter {
+    globals: Rc<RefCell<Environment>>,
     environment: RefCell<Rc<RefCell<Environment>>>,
     error_handler: RuntimeErrorHandler,
     is_repl: bool,
     is_single_expr: RefCell<bool>,
 }
 
+
 impl Interpreter {
     pub fn new() -> Self {
+        let globals = Rc::new(RefCell::new(Environment::new()));
+
+        globals.borrow_mut().define(
+            &Token::new(
+                TokenType::DefFn,
+                "clock".to_string(),
+                None,
+                0,
+            ),
+            Literal::Func(Func {
+                func: Rc::new(Clock {}),
+            }),
+        );
         Self {
+            globals: Rc::clone(&globals),
             error_handler: RuntimeErrorHandler::new(),
-            environment: RefCell::new(Rc::new(RefCell::new(Environment::new()))),
+            environment: RefCell::new(Rc::clone(&globals)),
             is_repl: false,
             is_single_expr: RefCell::new(false),
         }
@@ -33,7 +52,7 @@ impl Interpreter {
             if let Some(stmt) = stmts.get(0) {
                 match **stmt {
                     Stmt::Expression(_) => self.is_single_expr.replace(true),
-                    _ => self.is_single_expr.replace(false)
+                    _ => self.is_single_expr.replace(false),
                 };
             }
         }
@@ -64,89 +83,113 @@ impl Interpreter {
             return Ok(());
         }
         Err(self.error_handler.error(
-                operator, 
-                LoxErrorsTypes::SyntaxError("Operand must be a number".to_string()
-        )))
+            operator,
+            LoxErrorsTypes::SyntaxError("Operand must be a number".to_string()),
+        ))
     }
 
-    fn check_num_binary(&self, operator: &Token, left: &Literal, right: &Literal) -> Result<(), LoxError> {
+    fn check_num_binary(
+        &self,
+        operator: &Token,
+        left: &Literal,
+        right: &Literal,
+    ) -> Result<(), LoxError> {
         if left.get_typename() == "Number" && right.get_typename() == "Number" {
             return Ok(());
         } else if left.get_typename() == "String" || right.get_typename() == "String" {
-            return  Ok(());
+            return Ok(());
         }
 
         match operator.token_type {
-            TokenType::Minus |
-            TokenType::Slash |
-            TokenType::Star  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be numbers for".to_string()))),
-            TokenType::Plus => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings for".to_string()))),
-            _ => Ok(())
+            TokenType::Minus | TokenType::Slash | TokenType::Star => Err(self.error_handler.error(
+                operator,
+                LoxErrorsTypes::TypeError("Operands must be numbers for".to_string()),
+            )),
+            TokenType::Plus => Err(self.error_handler.error(
+                operator,
+                LoxErrorsTypes::TypeError(
+                    "Operands must be either numbers or strings for".to_string(),
+                ),
+            )),
+            _ => Ok(()),
         }
     }
 
-    fn check_compound_arithmetic(&self, operator: &Token, a: &Literal, b: &Literal) -> Result<(), LoxError> {
+    fn check_compound_arithmetic(
+        &self,
+        operator: &Token,
+        a: &Literal,
+        b: &Literal,
+    ) -> Result<(), LoxError> {
         match operator.token_type {
-            TokenType::PlusEqual  => {
+            TokenType::PlusEqual => {
                 if a.get_typename() == "Number" && b.get_typename() == "Number" {
                     return Ok(());
                 } else if a.get_typename() == "String" && b.get_typename() == "String" {
-                    return  Ok(());
-                } 
+                    return Ok(());
+                }
                 Err(self.error_handler.error(
-                    operator, 
-                    LoxErrorsTypes::TypeError(format!("Cannot add types '{}' and '{}' for", a.get_typename(), b.get_typename()))
+                    operator,
+                    LoxErrorsTypes::TypeError(format!(
+                        "Cannot add types '{}' and '{}' for",
+                        a.get_typename(),
+                        b.get_typename()
+                    )),
                 ))
-            },
-            TokenType::StarEqual  => {
+            }
+            TokenType::StarEqual => {
                 if a.get_typename() == "Number" && b.get_typename() == "Number" {
                     return Ok(());
                 } else if a.get_typename() == "String" && b.get_typename() == "String" {
                     return Err(self.error_handler.error(
-                        operator, 
-                        LoxErrorsTypes::TypeError(format!("Cannot multiply on types '{}' and '{}' for",
+                        operator,
+                        LoxErrorsTypes::TypeError(format!(
+                            "Cannot multiply on types '{}' and '{}' for",
                             a.get_typename(),
                             b.get_typename()
-                        )
-                    )));
+                        )),
+                    ));
                 } else if a.get_typename() == "String" || b.get_typename() == "Number" {
-                    return  Ok(());
-                } 
+                    return Ok(());
+                }
                 Err(self.error_handler.error(
-                    operator, 
-                    LoxErrorsTypes::TypeError(format!("Cannot multiply types '{}' and '{}' for",
+                    operator,
+                    LoxErrorsTypes::TypeError(format!(
+                        "Cannot multiply types '{}' and '{}' for",
                         a.get_typename(),
                         b.get_typename()
-                    ))
+                    )),
                 ))
-            },
+            }
             TokenType::MinusEqual => {
                 if a.get_typename() == "Number" && b.get_typename() == "Number" {
                     return Ok(());
                 }
 
                 Err(self.error_handler.error(
-                    operator, 
-                    LoxErrorsTypes::TypeError(format!("Cannot subtract types '{}' and '{}' for",
+                    operator,
+                    LoxErrorsTypes::TypeError(format!(
+                        "Cannot subtract types '{}' and '{}' for",
                         a.get_typename(),
                         b.get_typename()
-                    ))
+                    )),
                 ))
-            },
+            }
             TokenType::SlashEqual => {
                 if a.get_typename() == "Number" && b.get_typename() == "Number" {
                     return Ok(());
                 }
 
                 Err(self.error_handler.error(
-                    operator, 
-                    LoxErrorsTypes::TypeError(format!("Cannot divide types '{}' by '{}' for",
+                    operator,
+                    LoxErrorsTypes::TypeError(format!(
+                        "Cannot divide types '{}' by '{}' for",
                         a.get_typename(),
                         b.get_typename()
-                    ))
+                    )),
                 ))
-            },
-            _ => Ok(())
+            }
+            _ => Ok(()),
         }
     }
 
@@ -154,9 +197,15 @@ impl Interpreter {
         self.is_repl = is;
     }
 
-    fn check_arithmetic(&self, operator: &Token, expr: Result<Literal, String>) -> Result<Literal, LoxError> {
+    fn check_arithmetic(
+        &self,
+        operator: &Token,
+        expr: Result<Literal, String>,
+    ) -> Result<Literal, LoxError> {
         if let Err(err) = expr {
-            return Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError(err)));
+            return Err(self
+                .error_handler
+                .error(operator, LoxErrorsTypes::TypeError(err)));
         } else if let Ok(literal) = expr {
             return Ok(literal);
         }
@@ -171,42 +220,53 @@ impl Interpreter {
             if bool {
                 let middle = self.evaluate(&expr.middle)?;
                 return Ok(middle);
-            } 
+            }
             let right = self.evaluate(&expr.right)?;
             return Ok(right);
         }
-        Err(self.error_handler.error(&expr.operator, LoxErrorsTypes::RuntimeError("ternary operation failed.".to_string())))
+        Err(self.error_handler.error(
+            &expr.operator,
+            LoxErrorsTypes::RuntimeError("ternary operation failed.".to_string()),
+        ))
     }
 
-    fn do_comparison(&self, operator: &Token, left: Literal, right: Literal) -> Result<Literal, LoxError> {
+    fn do_comparison(
+        &self,
+        operator: &Token,
+        left: Literal,
+        right: Literal,
+    ) -> Result<Literal, LoxError> {
         let a = left.unwrap_number();
         let b = right.unwrap_number();
 
         match operator.token_type {
-            TokenType::LessEqual    => Ok(Literal::Bool(a <= b)),
-            TokenType::Less         => Ok(Literal::Bool(a < b)),
+            TokenType::LessEqual => Ok(Literal::Bool(a <= b)),
+            TokenType::Less => Ok(Literal::Bool(a < b)),
             TokenType::GreaterEqual => Ok(Literal::Bool(a >= b)),
-            TokenType::Greater      => Ok(Literal::Bool(a > b)),
-            _ => Err(self.error_handler.error(operator, LoxErrorsTypes::RuntimeError("failed to perform comparison".to_string())))
+            TokenType::Greater => Ok(Literal::Bool(a > b)),
+            _ => Err(self.error_handler.error(
+                operator,
+                LoxErrorsTypes::RuntimeError("failed to perform comparison".to_string()),
+            )),
         }
     }
 
     fn execute_block(&self, stmts: &[Box<Stmt>], enclosing: Environment) -> Result<(), LoxError> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
         self.environment.borrow_mut().borrow_mut().loop_started = prev.borrow().loop_started;
-        stmts
-            .iter()
-            .try_for_each(|stmt| {
-                if self.environment.borrow().borrow().break_encountered {
-                    prev.borrow_mut().break_encountered = self.environment.borrow().borrow().break_encountered;
-                    return Ok(());
-                }
-                if self.environment.borrow().borrow().continue_encountered {
-                    prev.borrow_mut().continue_encountered = self.environment.borrow().borrow().continue_encountered;
-                    return Ok(());
-                }
-                self.execute(stmt)
-            })?;
+        stmts.iter().try_for_each(|stmt| {
+            if self.environment.borrow().borrow().break_encountered {
+                prev.borrow_mut().break_encountered =
+                    self.environment.borrow().borrow().break_encountered;
+                return Ok(());
+            }
+            if self.environment.borrow().borrow().continue_encountered {
+                prev.borrow_mut().continue_encountered =
+                    self.environment.borrow().borrow().continue_encountered;
+                return Ok(());
+            }
+            self.execute(stmt)
+        })?;
         self.environment.replace(prev);
         Ok(())
     }
@@ -215,33 +275,33 @@ impl Interpreter {
 impl VisitorExpr<Literal> for Interpreter {
     fn visit_unary_expr(&self, expr: &UnaryExpr, _: u16) -> Result<Literal, LoxError> {
         let right = self.evaluate(&expr.right)?;
-        
+
         self.check_num_unary(&expr.operator, &right)?;
         match expr.operator.token_type {
             TokenType::Minus => Ok(Literal::Number(-right.unwrap_number())),
             TokenType::Bang => Ok(Literal::Bool(self.is_truthy(&right))),
-            _ => unreachable!("Unary evaluation reached unreachable state.")
+            _ => unreachable!("Unary evaluation reached unreachable state."),
         }
     }
 
     fn visit_binary_expr(&self, expr: &BinaryExpr, _: u16) -> Result<Literal, LoxError> {
         let left = self.evaluate(&expr.left)?;
         let right = self.evaluate(&expr.right)?;
-        
+
         self.check_num_binary(&expr.operator, &left, &right)?;
         match expr.operator.token_type {
             TokenType::Minus => self.check_arithmetic(&expr.operator, left - right),
             TokenType::Slash => self.check_arithmetic(&expr.operator, left / right),
-            TokenType::Star  => self.check_arithmetic(&expr.operator, left * right),
-            TokenType::Plus  => self.check_arithmetic(&expr.operator, left + right),
+            TokenType::Star => self.check_arithmetic(&expr.operator, left * right),
+            TokenType::Plus => self.check_arithmetic(&expr.operator, left + right),
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(left, right))),
-            TokenType::Equals    => Ok(Literal::Bool(self.is_equal(left, right))),
-            TokenType::Greater |
-            TokenType::Less |
-            TokenType::GreaterEqual |
-            TokenType::LessEqual    => self.do_comparison(&expr.operator, left, right),
-            _ => todo!("")
-        }    
+            TokenType::Equals => Ok(Literal::Bool(self.is_equal(left, right))),
+            TokenType::Greater
+            | TokenType::Less
+            | TokenType::GreaterEqual
+            | TokenType::LessEqual => self.do_comparison(&expr.operator, left, right),
+            _ => todo!(""),
+        }
     }
 
     fn visit_literal_expr(&self, expr: &LiteralExpr, _: u16) -> Result<Literal, LoxError> {
@@ -253,7 +313,7 @@ impl VisitorExpr<Literal> for Interpreter {
     }
 
     fn visit_ternary_expr(&self, expr: &TernaryExpr, _: u16) -> Result<Literal, LoxError> {
-        self.evaluate_ternary(&expr) 
+        self.evaluate_ternary(&expr)
     }
 
     fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<Literal, LoxError> {
@@ -295,12 +355,13 @@ impl VisitorExpr<Literal> for Interpreter {
         Ok(self.evaluate(&expr.right)?)
     }
 
-    fn visit_compoundassign_expr(&self, expr: &CompoundAssignExpr, _: u16) -> Result<Literal, LoxError> {
+    fn visit_compoundassign_expr(
+        &self,
+        expr: &CompoundAssignExpr,
+        _: u16,
+    ) -> Result<Literal, LoxError> {
         let value = self.evaluate(&expr.value)?;
-        let current_val = self.environment
-            .borrow()
-            .borrow()
-            .get(&expr.name)?;
+        let current_val = self.environment.borrow().borrow().get(&expr.name)?;
         self.is_single_expr.replace(false);
         self.check_compound_arithmetic(&expr.operator, &current_val, &value)?;
         match expr.operator.token_type {
@@ -312,7 +373,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         .mutate(&expr.name, v.dup())?;
                     return Ok(v.dup());
                 }
-            },
+            }
             TokenType::MinusEqual => {
                 if let Ok(v) = &current_val.sub(value) {
                     self.environment
@@ -321,10 +382,12 @@ impl VisitorExpr<Literal> for Interpreter {
                         .mutate(&expr.name, v.dup())?;
                     return Ok(v.dup());
                 }
-            },
-            TokenType::StarEqual  => {
+            }
+            TokenType::StarEqual => {
                 if current_val.get_typename() == "String" {
-                    let v = current_val.unwrap_str().repeat(value.unwrap_number() as usize);
+                    let v = current_val
+                        .unwrap_str()
+                        .repeat(value.unwrap_number() as usize);
                     self.environment
                         .borrow_mut()
                         .borrow_mut()
@@ -338,7 +401,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         .mutate(&expr.name, v.dup())?;
                     return Ok(v.dup());
                 }
-            },
+            }
             TokenType::SlashEqual => {
                 if let Ok(v) = &current_val.div(value) {
                     self.environment
@@ -347,10 +410,41 @@ impl VisitorExpr<Literal> for Interpreter {
                         .mutate(&expr.name, v.dup())?;
                     return Ok(v.dup());
                 }
-            },
+            }
             _ => {}
         }
-        Err(self.error_handler.error(&expr.operator, LoxErrorsTypes::SyntaxError("".to_string())))
+        Err(self
+            .error_handler
+            .error(&expr.operator, LoxErrorsTypes::SyntaxError("".to_string())))
+    }
+
+    fn visit_call_expr(&self, expr: &CallExpr, _: u16) -> Result<Literal, LoxError> {
+        let callee = self.evaluate(&expr.callee)?;
+
+        let mut args: Vec<Literal> = Vec::new();
+
+        for arg in expr.args.iter() {
+            args.push(self.evaluate(&arg)?);
+        }
+
+        if let Literal::Func(func) = callee {
+            if args.len() != func.arity() {
+                return Err(self.error_handler.error(
+                    &expr.paren,
+                    LoxErrorsTypes::RuntimeError(format!(
+                        "Expected {} arguments but got {}",
+                        func.arity(),
+                        args.len()
+                    )),
+                ))
+            }
+            func.call(self, args)
+        } else {
+            Err(self.error_handler.error(
+                &expr.paren,
+                LoxErrorsTypes::RuntimeError("Can only call functions and classes".to_string()),
+            ))
+        }
     }
 }
 
@@ -410,10 +504,13 @@ impl VisitorStmt<()> for Interpreter {
             }
 
             if self.environment.borrow().borrow().continue_encountered {
-                self.environment.borrow_mut().borrow_mut().continue_encountered = false;
+                self.environment
+                    .borrow_mut()
+                    .borrow_mut()
+                    .continue_encountered = false;
             }
         }
-        Ok(()) 
+        Ok(())
     }
 
     fn visit_break_stmt(&self, stmt: &BreakStmt, _: u16) -> Result<(), LoxError> {
@@ -422,19 +519,22 @@ impl VisitorStmt<()> for Interpreter {
             return Ok(());
         }
         Err(self.error_handler.error(
-            &stmt.token, 
-            LoxErrorsTypes::RuntimeError("Found 'break' outside loop block".to_string())
+            &stmt.token,
+            LoxErrorsTypes::RuntimeError("Found 'break' outside loop block".to_string()),
         ))
     }
 
     fn visit_continue_stmt(&self, stmt: &ContinueStmt, _: u16) -> Result<(), LoxError> {
         if self.environment.borrow().borrow().loop_started {
-            self.environment.borrow_mut().borrow_mut().continue_encountered = true;
+            self.environment
+                .borrow_mut()
+                .borrow_mut()
+                .continue_encountered = true;
             return Ok(());
         }
         Err(self.error_handler.error(
-            &stmt.token, 
-            LoxErrorsTypes::RuntimeError("Found 'continue' outside loop block".to_string())
+            &stmt.token,
+            LoxErrorsTypes::RuntimeError("Found 'continue' outside loop block".to_string()),
         ))
     }
 }

@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
     ];
 
     let expr_mods = vec![
-        "crate::lexer::token::{Token, Literal}".to_string(),
+        "crate::lexer::{token::Token, literal::Literal}".to_string(),
         "crate::errors::LoxError".to_string(),
     ];
 
@@ -33,7 +33,7 @@ fn main() -> io::Result<()> {
     ];
 
     let stmt_mods = vec![
-        "crate::lexer::token::{Token}".to_string(),
+        "crate::lexer::token::Token".to_string(),
         "crate::errors::LoxError".to_string(),
         "super::expr::*".to_string(),
     ];

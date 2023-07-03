@@ -1,7 +1,7 @@
 use std::{process, collections::HashMap};
 
 use crate::{
-    lexer::token::Token, lexer::token::Literal,
+    lexer::token::Token, lexer::literal::Literal,
     lexer::tokentype::TokenType,
     errors::{
         LoxErrorHandler::LoxErrorHandler,
