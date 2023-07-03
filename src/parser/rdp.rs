@@ -44,7 +44,7 @@ impl<'a> Parser<'a>{
             LoxErrorsTypes::SyntaxError("Expected name for identifier".to_string())
         )?;
 
-        let initializer = if self.is_match(vec![TokenType::Assign]) {
+        let initializer = if self.is_match(vec![ TokenType::Assign, ]) {
             Some(self.expression()?)
         } else {
             None
@@ -164,7 +164,7 @@ impl<'a> Parser<'a>{
     fn break_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         let tok = self.previous();
         self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after statement".to_string()))?;
-        Ok(Box::new(Stmt::Break(BreakStmt::new(tok))))
+        return Ok(Box::new(Stmt::Break(BreakStmt::new(tok))))
     }
 
     fn continue_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
@@ -263,6 +263,52 @@ impl<'a> Parser<'a>{
         Err(self.error_handler.error(&self.previous(), LoxErrorsTypes::SyntaxError("Expected expression after".to_string())))
     }
 
+    fn finish_call(&mut self, callee: Box<Expr>) -> Result<Box<Expr>, LoxError> {
+        let mut args: Vec<Box<Expr>> = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            if args.len() >= 255 {
+                return Err(
+                    self.error_handler.error(
+                        self.peek(), 
+                        LoxErrorsTypes::ParseError(
+                            "Cannot have more than 255 arguments".to_string()
+                        )
+                    )
+                );
+            }
+            args.push(self.expression()?);
+            while self.match_single_token(TokenType::Comma) {
+                args.push(self.expression()?);
+            }
+        }
+
+        let paren = self.consume(
+            TokenType::RightParen, 
+            LoxErrorsTypes::SyntaxError(
+                "Expected ')' after".to_string()
+            )
+        )?;
+        Ok(
+            Box::new(
+                Expr::Call(CallExpr::new(callee, paren, args))
+            )
+        )
+    }
+
+    fn call(&mut self) -> Result<Box<Expr>, LoxError> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.match_single_token(TokenType::LeftParen) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
     fn unary(&mut self) -> Result<Box<Expr>, LoxError> {
         if self.is_match(
             vec![TokenType::Bang, TokenType::Minus]
@@ -271,7 +317,7 @@ impl<'a> Parser<'a>{
             return Ok(Box::new(Expr::Unary(UnaryExpr::new(operator, self.unary()?))));
         }
 
-        self.primary()
+        self.call()
     }
 
     fn factor(&mut self) -> Result<Box<Expr>, LoxError> {
@@ -390,8 +436,38 @@ impl<'a> Parser<'a>{
         Ok(expr)
     }
 
+    fn compound_assignment(&mut self) -> Result<Box<Expr>, LoxError> {
+        let expr = self.assignment()?; 
+        
+        if self.is_match(vec![
+            TokenType::StarEqual,
+            TokenType::SlashEqual,
+            TokenType::PlusEqual,
+            TokenType::MinusEqual,
+        ]) {
+            let token = self.previous();
+            let value = self.compound_assignment()?;
+
+            match *expr {
+                Expr::Variable(var) => {
+                    let name = var.name; 
+                    return Ok(Box::new(Expr::CompoundAssign(CompoundAssignExpr::new(name, token, value))));
+                },
+                _ => {
+                    return Err(
+                        self.error_handler.error(
+                            &token, 
+                            LoxErrorsTypes::ParseError("Invalid assignment target".to_string())
+                            )
+                        );
+                }
+            }
+        }
+        Ok(expr)
+    }
+
     fn expression(&mut self) -> Result<Box<Expr>, LoxError> {
-        self.assignment()
+        self.compound_assignment()
     }
 
     fn is_at_end(&self) -> bool {

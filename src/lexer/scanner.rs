@@ -203,11 +203,32 @@ impl<'a> Scanner<'a> {
             '{' => self.add_token(TokenType::LeftBrace),
             '}' => self.add_token(TokenType::RightBrace),
             ',' => self.add_token(TokenType::Comma),
-            '-' => self.add_token(TokenType::Minus),
-            '+' => self.add_token(TokenType::Plus),
+            '-' => {
+                let token = if self.is_match('=') {
+                    TokenType::MinusEqual
+                } else {
+                    TokenType::Minus
+                };
+                self.add_token(token);
+            },
+            '+' => {
+                let token = if self.is_match('=') {
+                    TokenType::PlusEqual
+                } else {
+                    TokenType::Plus
+                };
+                self.add_token(token);
+            },
             '?' => self.add_token(TokenType::QuestionMark),
             ':' => self.add_token(TokenType::Colon),
-            '*' => self.add_token(TokenType::Star),
+            '*' => {
+                let token = if self.is_match('=') {
+                    TokenType::StarEqual
+                } else {
+                    TokenType::Star
+                };
+                self.add_token(token);
+            },
             ';' => self.add_token(TokenType::Semicolon),
             '!' => {
                 let token = if self.is_match('=') {
@@ -248,6 +269,8 @@ impl<'a> Scanner<'a> {
                     }
                 } else if self.is_match('*') {
                     self.block_comment();
+                } else if self.is_match('=')  {
+                    self.add_token(TokenType::SlashEqual);
                 } else {
                     self.add_token(TokenType::Slash);
                 }

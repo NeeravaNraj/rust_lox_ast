@@ -12,6 +12,8 @@ fn main() -> io::Result<()> {
         "Ternary ; left: Box<Expr>, operator: Token, middle: Box<Expr>, colon: Token, right: Box<Expr>".to_string(),
         "Variable ; name: Token".to_string(),
         "Assign ; name: Token, value: Box<Expr>".to_string(),
+        "CompoundAssign ; name: Token, operator: Token, value: Box<Expr>".to_string(),
+        "Call ; callee: Box<Expr>, paren: Token, args: Vec<Box<Expr>>".to_string(),
     ];
 
     let expr_mods = vec![

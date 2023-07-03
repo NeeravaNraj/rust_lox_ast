@@ -86,6 +86,7 @@ impl Literal {
         panic!("Recieved {} instead of \"Literal::Str()\"", self.to_string());
     }
 
+
     pub fn get_typename(&self) -> String {
         match self {
             Self::Number(_) => "Number".to_string(),

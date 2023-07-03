@@ -7,7 +7,7 @@ use crate::{
         LoxErrorsTypes
     },
 };
-use std::cell::RefCell;
+use std::{cell::RefCell, ops::{Add, Sub, Div, Mul}};
 use std::rc::Rc;
 use super::environment::Environment;
 
@@ -80,7 +80,72 @@ impl Interpreter {
             TokenType::Minus |
             TokenType::Slash |
             TokenType::Star  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be numbers for".to_string()))),
-            TokenType::Plus  => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings for".to_string()))),
+            TokenType::Plus => Err(self.error_handler.error(operator, LoxErrorsTypes::TypeError("Operands must be either numbers or strings for".to_string()))),
+            _ => Ok(())
+        }
+    }
+
+    fn check_compound_arithmetic(&self, operator: &Token, a: &Literal, b: &Literal) -> Result<(), LoxError> {
+        match operator.token_type {
+            TokenType::PlusEqual  => {
+                if a.get_typename() == "Number" && b.get_typename() == "Number" {
+                    return Ok(());
+                } else if a.get_typename() == "String" && b.get_typename() == "String" {
+                    return  Ok(());
+                } 
+                Err(self.error_handler.error(
+                    operator, 
+                    LoxErrorsTypes::TypeError(format!("Cannot add types '{}' and '{}' for", a.get_typename(), b.get_typename()))
+                ))
+            },
+            TokenType::StarEqual  => {
+                if a.get_typename() == "Number" && b.get_typename() == "Number" {
+                    return Ok(());
+                } else if a.get_typename() == "String" && b.get_typename() == "String" {
+                    return Err(self.error_handler.error(
+                        operator, 
+                        LoxErrorsTypes::TypeError(format!("Cannot multiply on types '{}' and '{}' for",
+                            a.get_typename(),
+                            b.get_typename()
+                        )
+                    )));
+                } else if a.get_typename() == "String" || b.get_typename() == "Number" {
+                    return  Ok(());
+                } 
+                Err(self.error_handler.error(
+                    operator, 
+                    LoxErrorsTypes::TypeError(format!("Cannot multiply types '{}' and '{}' for",
+                        a.get_typename(),
+                        b.get_typename()
+                    ))
+                ))
+            },
+            TokenType::MinusEqual => {
+                if a.get_typename() == "Number" && b.get_typename() == "Number" {
+                    return Ok(());
+                }
+
+                Err(self.error_handler.error(
+                    operator, 
+                    LoxErrorsTypes::TypeError(format!("Cannot subtract types '{}' and '{}' for",
+                        a.get_typename(),
+                        b.get_typename()
+                    ))
+                ))
+            },
+            TokenType::SlashEqual => {
+                if a.get_typename() == "Number" && b.get_typename() == "Number" {
+                    return Ok(());
+                }
+
+                Err(self.error_handler.error(
+                    operator, 
+                    LoxErrorsTypes::TypeError(format!("Cannot divide types '{}' by '{}' for",
+                        a.get_typename(),
+                        b.get_typename()
+                    ))
+                ))
+            },
             _ => Ok(())
         }
     }
@@ -229,6 +294,64 @@ impl VisitorExpr<Literal> for Interpreter {
 
         Ok(self.evaluate(&expr.right)?)
     }
+
+    fn visit_compoundassign_expr(&self, expr: &CompoundAssignExpr, _: u16) -> Result<Literal, LoxError> {
+        let value = self.evaluate(&expr.value)?;
+        let current_val = self.environment
+            .borrow()
+            .borrow()
+            .get(&expr.name)?;
+        self.is_single_expr.replace(false);
+        self.check_compound_arithmetic(&expr.operator, &current_val, &value)?;
+        match expr.operator.token_type {
+            TokenType::PlusEqual => {
+                if let Ok(v) = &current_val.add(value) {
+                    self.environment
+                        .borrow_mut()
+                        .borrow_mut()
+                        .mutate(&expr.name, v.dup())?;
+                    return Ok(v.dup());
+                }
+            },
+            TokenType::MinusEqual => {
+                if let Ok(v) = &current_val.sub(value) {
+                    self.environment
+                        .borrow_mut()
+                        .borrow_mut()
+                        .mutate(&expr.name, v.dup())?;
+                    return Ok(v.dup());
+                }
+            },
+            TokenType::StarEqual  => {
+                if current_val.get_typename() == "String" {
+                    let v = current_val.unwrap_str().repeat(value.unwrap_number() as usize);
+                    self.environment
+                        .borrow_mut()
+                        .borrow_mut()
+                        .mutate(&expr.name, Literal::Str(v.clone()))?;
+                    return Ok(Literal::Str(v));
+                }
+                if let Ok(v) = &current_val.mul(value) {
+                    self.environment
+                        .borrow_mut()
+                        .borrow_mut()
+                        .mutate(&expr.name, v.dup())?;
+                    return Ok(v.dup());
+                }
+            },
+            TokenType::SlashEqual => {
+                if let Ok(v) = &current_val.div(value) {
+                    self.environment
+                        .borrow_mut()
+                        .borrow_mut()
+                        .mutate(&expr.name, v.dup())?;
+                    return Ok(v.dup());
+                }
+            },
+            _ => {}
+        }
+        Err(self.error_handler.error(&expr.operator, LoxErrorsTypes::SyntaxError("".to_string())))
+    }
 }
 
 impl VisitorStmt<()> for Interpreter {
@@ -288,7 +411,6 @@ impl VisitorStmt<()> for Interpreter {
 
             if self.environment.borrow().borrow().continue_encountered {
                 self.environment.borrow_mut().borrow_mut().continue_encountered = false;
-                continue;
             }
         }
         Ok(()) 
