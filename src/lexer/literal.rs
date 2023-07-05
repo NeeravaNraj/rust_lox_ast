@@ -1,14 +1,14 @@
 use std::ops::{Add, Sub, Mul, Div};
 use std::fmt::{Display, Formatter};
 use core::fmt;
-use crate::interpreter::LoxCallable::*;
+use crate::interpreter::callable::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(f64),
     Str(String),
     Bool(bool),
-    Func(Func),
+    Func(Callable),
     None,
     LiteralNone,
 }
@@ -65,8 +65,6 @@ impl Literal {
     pub fn cmp_type(&self, rhs: &Self) -> bool {
         if self.get_typename() == rhs.get_typename() {
             return true;
-        } else if self.get_typename() == "String" || rhs.get_typename() == "String" {
-            return true;
         }
         false
     }
@@ -84,7 +82,7 @@ impl Literal {
             Self::Number(num) => println!("{num}"),
             Self::Str(str) => println!("{str}"),
             Self::Bool(bool) => println!("{bool}"),
-            Self::Func(_) => println!("Function"),
+            Self::Func(func) => println!("{}", func.to_string()),
             Self::None => println!("{}", self.to_string()),
             Self::LiteralNone => println!("{}", Literal::None.to_string()) 
         }

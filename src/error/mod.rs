@@ -1,11 +1,6 @@
-#[allow(non_snake_case)]
-pub mod ParseError;
-#[allow(non_snake_case)]
-pub mod LoxErrorHandler;
-#[allow(non_snake_case)]
-pub mod RuntimeError;
+pub mod loxerrorhandler;
 
-use crate::lexer::{tokentype::TokenType, token::Token};
+use crate::lexer::token::Token;
 
 #[allow(dead_code)]
 pub enum LoxErrorsTypes {

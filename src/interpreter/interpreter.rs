@@ -1,12 +1,13 @@
 use super::{
+    callable::{Callable, LoxCallable},
     environment::Environment,
-    LoxCallable::{Func, LoxCallable},
+    loxfunction::LoxFunction,
 };
 use crate::{
-    errors::{LoxError, LoxErrorsTypes, RuntimeError::RuntimeErrorHandler},
+    error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes},
     lexer::{literal::*, token::*, tokentype::TokenType},
+    loxlib::loxnatives::Clock,
     parser::{expr::*, stmt::*},
-    LoxLib::LoxNatives::Clock
 };
 use std::rc::Rc;
 use std::{
@@ -15,32 +16,28 @@ use std::{
 };
 
 pub struct Interpreter {
-    globals: Rc<RefCell<Environment>>,
-    environment: RefCell<Rc<RefCell<Environment>>>,
-    error_handler: RuntimeErrorHandler,
+    pub globals: Rc<RefCell<Environment>>,
+    pub environment: RefCell<Rc<RefCell<Environment>>>,
+    pub error_handler: LoxErrorHandler,
     is_repl: bool,
     is_single_expr: RefCell<bool>,
 }
-
 
 impl Interpreter {
     pub fn new() -> Self {
         let globals = Rc::new(RefCell::new(Environment::new()));
 
-        globals.borrow_mut().define(
-            &Token::new(
-                TokenType::DefFn,
-                "clock".to_string(),
-                None,
-                0,
-            ),
-            Literal::Func(Func {
+        if let Err(err) = globals.borrow_mut().define_native(
+            &Token::new(TokenType::DefFn, "clock".to_string(), None, 0),
+            Literal::Func(Callable {
                 func: Rc::new(Clock {}),
             }),
-        );
+        ) {
+            LoxError::report(&err);
+        }
         Self {
             globals: Rc::clone(&globals),
-            error_handler: RuntimeErrorHandler::new(),
+            error_handler: LoxErrorHandler::new(),
             environment: RefCell::new(Rc::clone(&globals)),
             is_repl: false,
             is_single_expr: RefCell::new(false),
@@ -251,7 +248,11 @@ impl Interpreter {
         }
     }
 
-    fn execute_block(&self, stmts: &[Box<Stmt>], enclosing: Environment) -> Result<(), LoxError> {
+    pub fn execute_block(
+        &self,
+        stmts: &[Box<Stmt>],
+        enclosing: Environment,
+    ) -> Result<(), LoxError> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
         self.environment.borrow_mut().borrow_mut().loop_started = prev.borrow().loop_started;
         stmts.iter().try_for_each(|stmt| {
@@ -436,7 +437,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         func.arity(),
                         args.len()
                     )),
-                ))
+                ));
             }
             func.call(self, args)
         } else {
@@ -536,5 +537,17 @@ impl VisitorStmt<()> for Interpreter {
             &stmt.token,
             LoxErrorsTypes::RuntimeError("Found 'continue' outside loop block".to_string()),
         ))
+    }
+
+    fn visit_function_stmt(&self, stmt: &FunctionStmt, _: u16) -> Result<(), LoxError> {
+        let function = LoxFunction::new(stmt);
+        self.environment
+            .borrow_mut()
+            .borrow_mut()
+            .define(
+                &stmt.name, 
+                Literal::Func(Callable { func: Rc::new(function) })
+            )?;
+        Ok(())
     }
 }

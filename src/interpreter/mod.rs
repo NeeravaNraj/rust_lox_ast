@@ -1,3 +1,4 @@
 pub mod interpreter;
 pub mod environment;
-pub mod LoxCallable;
+pub mod loxfunction;
+pub mod callable;

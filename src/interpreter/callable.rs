@@ -1,19 +1,20 @@
-use std::{rc::Rc, fmt::Debug};
+use std::{rc::Rc, fmt::{Debug, Display}};
 
-use crate::{lexer::literal::Literal, errors::LoxError};
+use crate::{lexer::literal::Literal, error::LoxError};
 use super::interpreter::Interpreter;
 
 pub trait LoxCallable {
     fn arity(&self) -> usize;
     fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxError>;
+    fn to_string(&self) -> String;
 }
 
 #[derive(Clone)]
-pub struct Func {
+pub struct Callable{
     pub func: Rc<dyn LoxCallable>
 }
 
-impl LoxCallable for Func {
+impl LoxCallable for Callable{
     fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxError> {
         self.func.call(interpreter, args)
     }
@@ -21,16 +22,27 @@ impl LoxCallable for Func {
     fn arity(&self) -> usize {
         self.func.arity()
     }
-}
 
-impl Debug for Func {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<Function>")
+    fn to_string(&self) -> String {
+        self.func.to_string()
     }
 }
 
-impl PartialEq for Func {
+impl Debug for Callable{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.func)
+    }
+}
+
+impl PartialEq for Callable {
     fn eq(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.func, &other.func)
     }
 }
+
+impl Display for dyn LoxCallable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+

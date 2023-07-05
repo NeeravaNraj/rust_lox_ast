@@ -3,12 +3,13 @@ use crate::{
     lexer::literal::*,
     lexer::tokentype::TokenType,
     parser::expr::{Expr, BinaryExpr, UnaryExpr, LiteralExpr, GroupingExpr},
-    errors::{
+    error::{
         LoxErrorsTypes,
         LoxError,
-        ParseError::ParseErrorHandler
+        loxerrorhandler::LoxErrorHandler
     },
 };
+use std::rc::Rc;
 
 use super::{
     expr::*,
@@ -18,7 +19,7 @@ use super::{
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     curr: usize,
-    error_handler: ParseErrorHandler,
+    error_handler: LoxErrorHandler,
 }
 
 impl<'a> Parser<'a>{
@@ -26,7 +27,7 @@ impl<'a> Parser<'a>{
         Self {
             tokens,
             curr: 0,
-            error_handler: ParseErrorHandler::new()
+            error_handler: LoxErrorHandler::new()
         }
     }
 
@@ -54,11 +55,61 @@ impl<'a> Parser<'a>{
 
         Ok(Box::new(Stmt::Let(LetStmt::new(name, initializer))))
     }
+
+    fn function(&mut self, kind: &str) -> Result<Box<Stmt>, LoxError> {
+        let name = self.consume(
+            TokenType::Identifier, 
+            LoxErrorsTypes::SyntaxError(format!("Expected {kind} name after"))
+        )?;
+
+        self.consume(
+            TokenType::LeftParen, 
+            LoxErrorsTypes::SyntaxError("Expected '(' after".to_string())
+        )?;
+
+        let mut params: Vec<Token> = Vec::new();
+
+        if !self.check(TokenType::RightParen) {
+            params.push(self.consume(
+                TokenType::Identifier, 
+                LoxErrorsTypes::SyntaxError("Expected parameter identifier".to_string())
+            )?);
+
+            while self.match_single_token(TokenType::Comma) {
+                if params.len() >= 255 {
+                    self.error_handler.error(
+                        self.peek(), 
+                        LoxErrorsTypes::SyntaxError("Can't have more than 255 parameters".to_string())
+                    );
+                }
+                params.push(self.consume(
+                    TokenType::Identifier, 
+                    LoxErrorsTypes::SyntaxError("Expected parameter identifier".to_string())
+                )?);
+            }
+        }
+
+        self.consume(
+            TokenType::RightParen, 
+            LoxErrorsTypes::SyntaxError("Expected ')' after parameters".to_string())
+        )?;
+
+        self.consume(
+            TokenType::LeftBrace, 
+            LoxErrorsTypes::SyntaxError(format!("Expected '{{' before {kind} body"))
+        )?;
+
+        let body: Vec<Box<Stmt>> = self.block_stmt()?;
+
+        Ok(Box::new(Stmt::Function(FunctionStmt::new(name, Rc::new(params), Rc::new(body)))))
+    }
     
     fn declaration(&mut self) -> Result<Box<Stmt>, LoxError> {
         let result = if self.match_single_token(TokenType::Let) {
             self.var_declaration()
-        } else {
+        } else if self.match_single_token(TokenType::DefFn){
+            self.function("function")
+        }else {
             self.statement()
         };
         if result.is_err() {
@@ -119,12 +170,12 @@ impl<'a> Parser<'a>{
     fn for_statement(&mut self) -> Result<Box<Stmt>, LoxError> {
         self.consume(TokenType::LeftParen, LoxErrorsTypes::SyntaxError("Expected '(' after".to_string()))?;
         
-        let mut initializer: Option<Box<Stmt>> = None;
+        let mut _initializer: Option<Box<Stmt>> = None;
 
         if self.match_single_token(TokenType::Let) {
-            initializer = Some(self.var_declaration()?);
+            _initializer = Some(self.var_declaration()?);
         } else {
-            initializer = Some(self.expr_statement()?);
+            _initializer = Some(self.expr_statement()?);
         }
 
         let mut condition: Option<Box<Expr>> = None;
@@ -155,8 +206,8 @@ impl<'a> Parser<'a>{
         }
         body = Box::new(Stmt::While(WhileStmt::new(condition.unwrap(), body)));
 
-        if initializer.is_some() {
-            let stmts = vec![initializer.unwrap(), body];
+        if _initializer.is_some() {
+            let stmts = vec![_initializer.unwrap(), body];
             body = Box::new(Stmt::Block(BlockStmt::new(stmts)));
         }
         Ok(body)

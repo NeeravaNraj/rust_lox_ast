@@ -1,4 +1,7 @@
-use crate::lexer::tokentype::TokenType;
+use crate::lexer::{
+    token::Token,
+    tokentype::TokenType
+};
 
 use super::{
     LoxError,
@@ -13,7 +16,13 @@ impl LoxErrorHandler {
         Self 
     }
 
-    pub fn error(&self, line: i32, err_type: LoxErrorsTypes) -> LoxError {
+    pub fn error(&self, token: &Token, err_type: LoxErrorsTypes) -> LoxError {
+        let error = LoxError::new(err_type, Some(token.dup()), token.line, true);
+        self.report(&error);
+        error
+    }
+
+    pub fn simple_error(&self, line: i32, err_type: LoxErrorsTypes) -> LoxError {
         let error = LoxError { 
             has_error: true, 
             error_type: err_type, 

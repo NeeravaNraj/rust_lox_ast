@@ -1,12 +1,12 @@
-mod errors;
+mod error;
 mod interpreter;
 mod lexer;
 mod parser;
 mod tools;
-mod LoxLib;
+mod loxlib;
 
 use std::{env, fs, io, process};
-use errors::LoxErrorHandler::LoxErrorHandler;
+use error::loxerrorhandler::LoxErrorHandler;
 use interpreter::interpreter::Interpreter;
 use lexer::scanner::*;
 use parser::rdp::Parser;

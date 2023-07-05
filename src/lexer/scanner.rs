@@ -3,8 +3,8 @@ use std::{process, collections::HashMap};
 use crate::{
     lexer::token::Token, lexer::literal::Literal,
     lexer::tokentype::TokenType,
-    errors::{
-        LoxErrorHandler::LoxErrorHandler,
+    error::{
+        loxerrorhandler::LoxErrorHandler,
         LoxError,
         LoxErrorsTypes
     },
@@ -75,7 +75,7 @@ impl<'a> Scanner<'a> {
         }
 
         *self.source.get(self.curr).unwrap_or_else(|| {
-            self.error_handler.error(self.line - 1, LoxErrorsTypes::LexerError(
+            self.error_handler.simple_error(self.line - 1, LoxErrorsTypes::LexerError(
                 "Something went in \"lexer::Scanner::peek()\", exiting".to_string()
             ));
             process::exit(1);
@@ -102,7 +102,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.error_handler.error(
+            self.error_handler.simple_error(
                 self.line - 1, 
                 LoxErrorsTypes::SyntaxError("String was not terminated".to_string())
             );
@@ -181,7 +181,7 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 },
                 '\0' => {
-                    self.error_handler.error(
+                    self.error_handler.simple_error(
                         self.line - 1, 
                         LoxErrorsTypes::SyntaxError("Comment block was not terminated".to_string())
                     );
@@ -283,7 +283,7 @@ impl<'a> Scanner<'a> {
             '\t' => (),
             '\n' => self.line += 1,
             _ => {
-                return Err(self.error_handler.error(self.line, LoxErrorsTypes::SyntaxError(format!("Unknown character {}", c))));
+                return Err(self.error_handler.simple_error(self.line, LoxErrorsTypes::SyntaxError(format!("Unknown character {}", c))));
             }
         }
 
@@ -330,6 +330,7 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("false"), TokenType::False);
         hmap.insert(String::from("break"), TokenType::Break);
         hmap.insert(String::from("continue"), TokenType::Continue);
+        hmap.insert(String::from("fn"), TokenType::DefFn);
     }
 
     fn get_literal_type(&self, token: &TokenType) -> Literal {

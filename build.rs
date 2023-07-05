@@ -18,7 +18,7 @@ fn main() -> io::Result<()> {
 
     let expr_mods = vec![
         "crate::lexer::{token::Token, literal::Literal}".to_string(),
-        "crate::errors::LoxError".to_string(),
+        "crate::error::LoxError".to_string(),
     ];
 
     let stmt_type = vec![
@@ -30,11 +30,13 @@ fn main() -> io::Result<()> {
         "While ; condition: Box<Expr>, body: Box<Stmt>".to_string(),
         "Break ; token: Token".to_string(),
         "Continue ; token: Token".to_string(),
+        "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Box<Stmt>>>".to_string(),
     ];
 
     let stmt_mods = vec![
         "crate::lexer::token::Token".to_string(),
-        "crate::errors::LoxError".to_string(),
+        "crate::error::LoxError".to_string(),
+        "std::rc::Rc".to_string(),
         "super::expr::*".to_string(),
     ];
     
