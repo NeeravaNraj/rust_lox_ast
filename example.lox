@@ -1,0 +1,48 @@
+// Examples to the syntax of the language
+
+// Variable binding
+let a = 1;
+
+// Printing to stdout
+print a;
+
+// Variable mutation
+a = 2;
+
+// Compound assignment
+a += 3;
+a -= 3;
+a *= 2;
+a /= 2;
+
+// Conditionals
+if (a == 1) print;
+
+if (a != 1) {
+    print 2;
+} else {
+    print a;
+}
+
+// Loops
+
+while (a != 10) {
+    // do stuff
+} 
+
+for (let i = 0; i < n; i += 1) {
+    // do stuff
+}
+
+// Function declaration
+
+fn greet(name) {
+    print "Hello" + name; // String concatenation is inbuilt
+}
+
+// Function call
+
+greet(" world!");
+
+// Currently supported data-types
+// String, Number(integers and floats), Boolean
