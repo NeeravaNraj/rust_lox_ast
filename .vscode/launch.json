@@ -9,7 +9,7 @@
             "request": "launch",
             "name": "Debug",
             "program": "${workspaceRoot}/target/debug/r_lox_ast",
-            "args": [],
+            "args": ["${workspaceRoot}/test.lox"],
             "cwd": "${workspaceRoot}/target/debug/",
         }
     ]

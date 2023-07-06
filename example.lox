@@ -1,13 +1,23 @@
-// Examples to the syntax of the language
+// Examples for the syntax of the language
+
+/*
+    Write comments with
+    '//' for a single line 
+    or 
+    /* comment */ for a block-comment which supports multiline and nesting
+*/
 
 // Variable binding
 let a = 1;
 
 // Printing to stdout
-print a;
+print a; // prints '1' to command line
 
 // Variable mutation
 a = 2;
+
+// Arithmetic operators
+// +, -, *, / (Modulus and bitwise are currently not implemented)
 
 // Compound assignment
 a += 3;
@@ -15,8 +25,23 @@ a -= 3;
 a *= 2;
 a /= 2;
 
+// Ternary operator
+let x = 1 == 2 ? true : false;
+
+// Declaring a local scope 
+
+{
+    let a = 1;
+
+    {
+        let a = 2; 
+        print a; // prints '2'
+    }
+    print a; // prints '1'
+}
+
 // Conditionals
-if (a == 1) print;
+if (a == 1) print a;
 
 if (a != 1) {
     print 2;
@@ -28,10 +53,12 @@ if (a != 1) {
 
 while (a != 10) {
     // do stuff
+    break; // The break keyword exits the loop when encountered.
 } 
 
-for (let i = 0; i < n; i += 1) {
+for (let i = 0; i < 10; i += 1) {
     // do stuff
+    continue; // The continue keyword passes to the next interation of the loop when encountered.
 }
 
 // Function declaration
@@ -42,7 +69,7 @@ fn greet(name) {
 
 // Function call
 
-greet(" world!");
+greet(" user!"); // prints 'Hello world!'
 
 // Currently supported data-types
-// String, Number(integers and floats), Boolean
+// String, Number(integers and floats), Boolean and none

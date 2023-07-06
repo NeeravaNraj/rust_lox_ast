@@ -10,6 +10,7 @@ pub struct Environment {
     pub loop_started: bool,
     pub break_encountered: bool,
     pub continue_encountered: bool,
+    pub id: usize,
     env: HashMap<String, Literal>,
     natives: HashMap<String, ()>,
     error_handler: LoxErrorHandler,
@@ -25,11 +26,13 @@ impl Environment {
             loop_started: false,
             break_encountered: false,
             continue_encountered: false,
-            natives: HashMap::new()
+            natives: HashMap::new(),
+            id: 0
         }
     }
 
     pub fn new_enclosing(env: Rc<RefCell<Environment>>) -> Self {
+        let id = env.borrow().id + 1;
         Self {
             env: HashMap::new(),
             error_handler: LoxErrorHandler::new(),
@@ -37,7 +40,8 @@ impl Environment {
             loop_started: false,
             continue_encountered: false,
             break_encountered: false,
-            natives: HashMap::new()
+            natives: HashMap::new(),
+            id
         }
     }
 

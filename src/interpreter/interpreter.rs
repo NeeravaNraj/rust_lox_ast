@@ -255,7 +255,9 @@ impl Interpreter {
     ) -> Result<(), LoxError> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
         self.environment.borrow_mut().borrow_mut().loop_started = prev.borrow().loop_started;
-        stmts.iter().try_for_each(|stmt| {
+        for stmt in stmts {
+            self.execute(stmt)?;
+
             if self.environment.borrow().borrow().break_encountered {
                 prev.borrow_mut().break_encountered =
                     self.environment.borrow().borrow().break_encountered;
@@ -266,8 +268,7 @@ impl Interpreter {
                     self.environment.borrow().borrow().continue_encountered;
                 return Ok(());
             }
-            self.execute(stmt)
-        })?;
+        }
         self.environment.replace(prev);
         Ok(())
     }
@@ -497,7 +498,6 @@ impl VisitorStmt<()> for Interpreter {
         self.environment.borrow_mut().borrow_mut().loop_started = true;
         while self.is_truthy(&self.evaluate(&stmt.condition)?) {
             self.execute(&stmt.body)?;
-
             if self.environment.borrow().borrow().break_encountered {
                 self.environment.borrow_mut().borrow_mut().loop_started = false;
                 self.environment.borrow_mut().borrow_mut().break_encountered = false;
