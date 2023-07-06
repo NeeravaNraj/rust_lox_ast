@@ -6,6 +6,7 @@ use crate::lexer::{
 use super::{
     LoxError,
     LoxErrorsTypes,
+    LoxResult
 };
 
 #[derive(Clone)]
@@ -16,13 +17,13 @@ impl LoxErrorHandler {
         Self 
     }
 
-    pub fn error(&self, token: &Token, err_type: LoxErrorsTypes) -> LoxError {
+    pub fn error(&self, token: &Token, err_type: LoxErrorsTypes) -> LoxResult {
         let error = LoxError::new(err_type, Some(token.dup()), token.line, true);
         self.report(&error);
-        error
+        LoxResult::LoxError(error)
     }
 
-    pub fn simple_error(&self, line: i32, err_type: LoxErrorsTypes) -> LoxError {
+    pub fn simple_error(&self, line: i32, err_type: LoxErrorsTypes) -> LoxResult {
         let error = LoxError { 
             has_error: true, 
             error_type: err_type, 
@@ -30,7 +31,7 @@ impl LoxErrorHandler {
             token: None
         };
         self.report(&error);
-        error
+        LoxResult::LoxError(error)
     }
 
     pub fn report(&self, error: &LoxError) {

@@ -1,11 +1,11 @@
 use std::{rc::Rc, fmt::{Debug, Display}};
 
-use crate::{lexer::literal::Literal, error::LoxError};
+use crate::{lexer::literal::Literal, error::*};
 use super::interpreter::Interpreter;
 
 pub trait LoxCallable {
     fn arity(&self) -> usize;
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxError>;
+    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult>;
     fn to_string(&self) -> String;
 }
 
@@ -15,7 +15,7 @@ pub struct Callable{
 }
 
 impl LoxCallable for Callable{
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxError> {
+    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
         self.func.call(interpreter, args)
     }
 

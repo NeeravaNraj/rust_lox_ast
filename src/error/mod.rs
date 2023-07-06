@@ -96,3 +96,10 @@ impl LoxError {
     }
 }
 
+pub enum LoxResult {
+    LoxError(LoxError),
+    LoxWarning(LoxWarning),
+    LoxBreak,
+    LoxContinue,
+    LoxReturn,
+}

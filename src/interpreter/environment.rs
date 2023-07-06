@@ -1,14 +1,13 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    error::{LoxError, LoxErrorsTypes, loxerrorhandler::LoxErrorHandler},
+    error::{LoxResult, LoxErrorsTypes, loxerrorhandler::LoxErrorHandler},
     lexer::token::Token,
     lexer::literal::*
 };
 #[derive(Clone)]
 pub struct Environment {
     pub loop_started: bool,
-    pub break_encountered: bool,
     pub continue_encountered: bool,
     pub id: usize,
     env: HashMap<String, Literal>,
@@ -24,7 +23,6 @@ impl Environment {
             error_handler: LoxErrorHandler::new(),
             enclosing: None,
             loop_started: false,
-            break_encountered: false,
             continue_encountered: false,
             natives: HashMap::new(),
             id: 0
@@ -37,15 +35,14 @@ impl Environment {
             env: HashMap::new(),
             error_handler: LoxErrorHandler::new(),
             enclosing: Some(env),
-            loop_started: false,
             continue_encountered: false,
-            break_encountered: false,
+            loop_started: false,
             natives: HashMap::new(),
             id
         }
     }
 
-    pub fn define_native(&mut self, name: &Token, val: Literal) -> Result<(), LoxError> {
+    pub fn define_native(&mut self, name: &Token, val: Literal) -> Result<(), LoxResult> {
         if self.env.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
@@ -57,7 +54,7 @@ impl Environment {
         Ok(())
     }
 
-    pub fn define(&mut self, name: &Token, val: Literal) -> Result<(), LoxError> {
+    pub fn define(&mut self, name: &Token, val: Literal) -> Result<(), LoxResult> {
         if self.env.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
@@ -68,7 +65,7 @@ impl Environment {
         Ok(())
     }
 
-    pub fn mutate(&mut self, name: &Token, val: Literal) -> Result<(), LoxError> {
+    pub fn mutate(&mut self, name: &Token, val: Literal) -> Result<(), LoxResult> {
         if self.natives.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
@@ -90,7 +87,7 @@ impl Environment {
         ))
     }
 
-    pub fn get(&self, name: &Token) -> Result<Literal, LoxError> {
+    pub fn get(&self, name: &Token) -> Result<Literal, LoxResult> {
         if let Some(literal) = self.env.get(name.lexeme.as_str()) {
             return Ok(literal.clone());
         } else if let Some(enc) = &self.enclosing {

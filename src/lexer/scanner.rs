@@ -5,8 +5,8 @@ use crate::{
     lexer::tokentype::TokenType,
     error::{
         loxerrorhandler::LoxErrorHandler,
-        LoxError,
-        LoxErrorsTypes
+        LoxErrorsTypes,
+        LoxResult
     },
 };
 
@@ -35,7 +35,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, LoxError> {
+    pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, LoxResult> {
         while !self.is_at_end() {
             self.start = self.curr;
             self.scan_token()?;
@@ -195,7 +195,7 @@ impl<'a> Scanner<'a> {
 
     }
 
-    fn scan_token(&mut self) -> Result<(), LoxError> {
+    fn scan_token(&mut self) -> Result<(), LoxResult> {
         let c = self.advance();
         match c {
             '(' => self.add_token(TokenType::LeftParen),

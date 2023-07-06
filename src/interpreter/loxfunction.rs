@@ -2,7 +2,7 @@ use crate::{
     parser::stmt::*,
     lexer::literal::Literal,
     lexer::token::*,
-    error::LoxError,
+    error::*,
 };
 use std::rc::Rc;
 use super::{
@@ -31,7 +31,7 @@ impl LoxFunction {
 }
 
 impl LoxCallable for LoxFunction {
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxError> {
+    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
         let mut env = Environment::new_enclosing(interpreter.globals.clone());
         for (i, d) in self.params.iter().enumerate() {
             if let Some(val) = args.get(i) {

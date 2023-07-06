@@ -33,7 +33,7 @@ impl GenAst {
             GenAst::define_type(&mut file, type_name, type_fields, &basename)?;
         }
         write!(file, "impl {} {{\n", basename)?;
-            write!(file, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxError> {{\n", basename)?;
+            write!(file, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxResult> {{\n", basename)?;
                 write!(file, "        match self {{\n")?;
                 for t in &types {
                     let type_name = t.split_once(';').unwrap().0.trim();
@@ -69,7 +69,7 @@ impl GenAst {
         write!(f, "        )\n")?;
         write!(f, "    }}\n")?;
         write!(f, "\n")?;
-        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxError> {{\n", basename)?;
+        write!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxResult> {{\n", basename)?;
         write!(f, "        visitor.visit_{}_{}(self, depth)\n", type_name.to_lowercase(), basename.to_lowercase())?;
         write!(f, "    }}\n")?;
         write!(f, "}}\n\n")?;
@@ -82,7 +82,7 @@ impl GenAst {
         for t in types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
-            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> Result<T, LoxError>;\n\n", 
+            write!(f, "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> Result<T, LoxResult>;\n\n", 
                    type_name.to_lowercase(), 
                    basename.to_lowercase(), 
                    basename.to_lowercase(),

@@ -33,7 +33,6 @@ impl Lox {
 
             if let Ok(stmts) = parser.parse() {
                 if let Err(err) = self.interpreter.interpret(stmts) {
-                    if err.has_error {}
                 };
             }
         }
