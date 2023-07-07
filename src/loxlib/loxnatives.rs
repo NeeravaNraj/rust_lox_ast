@@ -1,10 +1,8 @@
 use std::time::SystemTime;
 
 use crate::{
-    interpreter::interpreter::Interpreter,
-    lexer::literal::Literal,
-    error::*,
-    interpreter::callable::LoxCallable
+    error::*, lexer::literal::Literal, runtime::callable::LoxCallable,
+    runtime::interpreter::Interpreter,
 };
 pub struct Clock;
 
@@ -17,11 +15,13 @@ impl LoxCallable for Clock {
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
         match now {
             Ok(time) => Ok(Literal::Number(time.as_secs_f64())),
-            Err(err) => Err(
-                LoxResult::LoxError(
-                    LoxError::system_error(format!("Clock return invalid duration: {}", err.duration().as_secs_f64()).as_str())
+            Err(err) => Err(LoxResult::Error(LoxError::system_error(
+                format!(
+                    "Clock return invalid duration: {}",
+                    err.duration().as_secs_f64()
                 )
-            )
+                .as_str(),
+            ))),
         }
     }
 

@@ -1,8 +1,9 @@
-fn fib(n) {
-    if (n <= 1) return n;
-    return fib(n - 2) + fib(n - 1);
+fn thrice(func) {
+  for (let i = 1; i <= 3; i = i + 1) {
+    func(i);
+  }
 }
 
-for (let i = 0; i < 20; i += 1) {
-    print fib(i);
-}
+thrice(fn (a) {
+  print a;
+});

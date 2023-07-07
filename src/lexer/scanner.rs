@@ -1,13 +1,10 @@
-use std::{process, collections::HashMap};
+use std::{collections::HashMap, process};
 
 use crate::{
-    lexer::token::Token, lexer::literal::Literal,
+    error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
+    lexer::literal::Literal,
+    lexer::token::Token,
     lexer::tokentype::TokenType,
-    error::{
-        loxerrorhandler::LoxErrorHandler,
-        LoxErrorsTypes,
-        LoxResult
-    },
 };
 
 pub struct Scanner<'a> {
@@ -17,11 +14,11 @@ pub struct Scanner<'a> {
     curr: usize,
     error_handler: &'a LoxErrorHandler,
     keywords: HashMap<String, TokenType>,
-    line: i32
+    line: i32,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &String, err_handler: &'a LoxErrorHandler) -> Self {
+    pub fn new(source: &str, err_handler: &'a LoxErrorHandler) -> Self {
         let mut keywords: HashMap<String, TokenType> = HashMap::new();
         Scanner::load_keywords(&mut keywords);
         Self {
@@ -31,7 +28,7 @@ impl<'a> Scanner<'a> {
             curr: 0,
             error_handler: err_handler,
             keywords,
-            line: 1
+            line: 1,
         }
     }
 
@@ -60,11 +57,11 @@ impl<'a> Scanner<'a> {
             return false;
         }
         if let Some(ch) = self.source.get(self.curr) {
-            if *ch !=  expected {
+            if *ch != expected {
                 return false;
             }
         }
-        
+
         self.curr += 1;
         true
     }
@@ -75,9 +72,12 @@ impl<'a> Scanner<'a> {
         }
 
         *self.source.get(self.curr).unwrap_or_else(|| {
-            self.error_handler.simple_error(self.line - 1, LoxErrorsTypes::LexerError(
-                "Something went in \"lexer::Scanner::peek()\", exiting".to_string()
-            ));
+            self.error_handler.simple_error(
+                self.line - 1,
+                LoxErrorsTypes::Lexer(
+                    "Something went in \"lexer::Scanner::peek()\", exiting".to_string(),
+                ),
+            );
             process::exit(1);
         })
     }
@@ -103,8 +103,8 @@ impl<'a> Scanner<'a> {
 
         if self.is_at_end() {
             self.error_handler.simple_error(
-                self.line - 1, 
-                LoxErrorsTypes::SyntaxError("String was not terminated".to_string())
+                self.line - 1,
+                LoxErrorsTypes::Syntax("String was not terminated".to_string()),
             );
             return;
         }
@@ -112,7 +112,7 @@ impl<'a> Scanner<'a> {
         self.advance();
 
         // TODO: Handle escapes sequences
-        let value: String = self.source[(self.start+1)..(self.curr-1)]
+        let value: String = self.source[(self.start + 1)..(self.curr - 1)]
             .iter()
             .collect();
         self.add_literal(TokenType::String, Some(Literal::Str(value)));
@@ -131,12 +131,10 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        let value: String = self.source[self.start..self.curr]
-            .iter()
-            .collect();
+        let value: String = self.source[self.start..self.curr].iter().collect();
         self.add_literal(
             TokenType::Number,
-            Some(Literal::Number(value.parse::<f64>().unwrap()))
+            Some(Literal::Number(value.parse::<f64>().unwrap())),
         );
     }
 
@@ -145,10 +143,7 @@ impl<'a> Scanner<'a> {
             self.advance();
         }
 
-
-        let text: String = self.source[self.start..self.curr]
-            .iter()
-            .collect();
+        let text: String = self.source[self.start..self.curr].iter().collect();
         if self.keywords.contains_key(&text) {
             let token = self.keywords.get(&text).unwrap();
             if self.is_literal_type(token) {
@@ -169,30 +164,29 @@ impl<'a> Scanner<'a> {
                     if self.is_match('*') {
                         self.block_comment();
                     }
-                },
+                }
                 '*' => {
                     self.advance();
                     if self.is_match('/') {
                         return;
                     }
-                },
+                }
                 '\n' => {
                     self.line += 1;
                     self.advance();
-                },
+                }
                 '\0' => {
                     self.error_handler.simple_error(
-                        self.line - 1, 
-                        LoxErrorsTypes::SyntaxError("Comment block was not terminated".to_string())
+                        self.line - 1,
+                        LoxErrorsTypes::Syntax("Comment block was not terminated".to_string()),
                     );
                     return;
-                },
+                }
                 _ => {
                     self.advance();
                 }
             }
         }
-
     }
 
     fn scan_token(&mut self) -> Result<(), LoxResult> {
@@ -202,6 +196,8 @@ impl<'a> Scanner<'a> {
             ')' => self.add_token(TokenType::RightParen),
             '{' => self.add_token(TokenType::LeftBrace),
             '}' => self.add_token(TokenType::RightBrace),
+            '[' => self.add_token(TokenType::RightBracket),
+            ']' => self.add_token(TokenType::LeftBracket),
             ',' => self.add_token(TokenType::Comma),
             '-' => {
                 let token = if self.is_match('=') {
@@ -210,7 +206,7 @@ impl<'a> Scanner<'a> {
                     TokenType::Minus
                 };
                 self.add_token(token);
-            },
+            }
             '+' => {
                 let token = if self.is_match('=') {
                     TokenType::PlusEqual
@@ -218,7 +214,7 @@ impl<'a> Scanner<'a> {
                     TokenType::Plus
                 };
                 self.add_token(token);
-            },
+            }
             '?' => self.add_token(TokenType::QuestionMark),
             ':' => self.add_token(TokenType::Colon),
             '*' => {
@@ -228,7 +224,7 @@ impl<'a> Scanner<'a> {
                     TokenType::Star
                 };
                 self.add_token(token);
-            },
+            }
             ';' => self.add_token(TokenType::Semicolon),
             '!' => {
                 let token = if self.is_match('=') {
@@ -237,23 +233,23 @@ impl<'a> Scanner<'a> {
                     TokenType::Bang
                 };
                 self.add_token(token);
-            },
-            '=' =>  {
+            }
+            '=' => {
                 let token = if self.is_match('=') {
                     TokenType::Equals
                 } else {
                     TokenType::Assign
                 };
                 self.add_token(token);
-            },
+            }
             '<' => {
-                let token = if self.is_match('='){
+                let token = if self.is_match('=') {
                     TokenType::LessEqual
                 } else {
                     TokenType::Less
                 };
                 self.add_token(token);
-            },
+            }
             '>' => {
                 let token = if self.is_match('=') {
                     TokenType::GreaterEqual
@@ -261,7 +257,7 @@ impl<'a> Scanner<'a> {
                     TokenType::Greater
                 };
                 self.add_token(token);
-            },
+            }
             '/' => {
                 if self.is_match('/') {
                     while self.peek() != '\n' && !self.is_at_end() {
@@ -269,12 +265,12 @@ impl<'a> Scanner<'a> {
                     }
                 } else if self.is_match('*') {
                     self.block_comment();
-                } else if self.is_match('=')  {
+                } else if self.is_match('=') {
                     self.add_token(TokenType::SlashEqual);
                 } else {
                     self.add_token(TokenType::Slash);
                 }
-            },
+            }
             _ if c.is_ascii_alphabetic() => self.identifier(),
             '0'..='9' => self.number(),
             '"' => self.string(),
@@ -283,7 +279,10 @@ impl<'a> Scanner<'a> {
             '\t' => (),
             '\n' => self.line += 1,
             _ => {
-                return Err(self.error_handler.simple_error(self.line, LoxErrorsTypes::SyntaxError(format!("Unknown character {}", c))));
+                return Err(self.error_handler.simple_error(
+                    self.line,
+                    LoxErrorsTypes::Syntax(format!("Unknown character {}", c)),
+                ));
             }
         }
 
@@ -296,13 +295,12 @@ impl<'a> Scanner<'a> {
 
     fn add_literal(&mut self, token: TokenType, literal: Option<Literal>) {
         let text: String = self.source[self.start..self.curr].iter().collect();
-        self.tokens.push(Token::new(token, text, literal, self.line)) 
+        self.tokens
+            .push(Token::new(token, text, literal, self.line))
     }
 
     fn is_alpha(ch: char) -> bool {
-        (ch >= 'a' && ch <= 'z') ||
-        (ch >= 'A' && ch <= 'Z') ||
-        ch == '_'
+        ('a'..='z').contains(&ch) || ('A'..='Z').contains(&ch) || ch == '_'
     }
 
     fn is_alphanumeric(ch: char) -> bool {
@@ -338,16 +336,11 @@ impl<'a> Scanner<'a> {
             TokenType::None => Literal::None,
             TokenType::True => Literal::Bool(true),
             TokenType::False => Literal::Bool(false),
-            _ => Literal::LiteralNone
+            _ => Literal::LiteralNone,
         }
     }
 
     fn is_literal_type(&self, token: &TokenType) -> bool {
-        match *token {
-            TokenType::True => true,
-            TokenType::False => true,
-            TokenType::None => true,
-            _ => false
-        }
+        matches!(*token, TokenType::True | TokenType::False | TokenType::None)
     }
 }

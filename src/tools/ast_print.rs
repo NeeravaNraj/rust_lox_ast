@@ -35,7 +35,7 @@
 //             for (index, e) in expr.iter().enumerate() {
 //                 if len == 2 {
 //                     base.push_str(
-//                         &format!("{}{}: {}\n", 
+//                         &format!("{}{}: {}\n",
 //                              tab.repeat(depth as usize),
 //                              branches[index],
 //                              e.accept(self, depth)?.trim_end()
@@ -43,7 +43,7 @@
 //                     );
 //                 } else {
 //                     base.push_str(
-//                         &format!("{}{}\n", 
+//                         &format!("{}{}\n",
 //                              tab.repeat(depth as usize),
 //                              e.accept(self, depth)?.trim_end()
 //                         )
@@ -90,8 +90,8 @@
 //
 //     fn visit_assign_expr(&self, expr: &AssignExpr, depth: u16) -> Result<String, LoxError> {
 //         self.format(
-//             format!("Assign {}", expr.name).as_str(), 
-//             vec![&expr.value], 
+//             format!("Assign {}", expr.name).as_str(),
+//             vec![&expr.value],
 //             depth
 //         )
 //     }

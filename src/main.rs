@@ -1,20 +1,20 @@
 mod error;
-mod interpreter;
 mod lexer;
-mod parser;
-mod tools;
 mod loxlib;
+mod parser;
+mod runtime;
+mod tools;
 
-use std::{env, fs, io, process};
 use error::loxerrorhandler::LoxErrorHandler;
-use interpreter::interpreter::Interpreter;
 use lexer::scanner::*;
 use parser::rdp::Parser;
+use runtime::interpreter::Interpreter;
+use std::{env, fs, io, process};
 
 struct Lox {
     error: LoxErrorHandler,
     interpreter: Interpreter,
-    is_repl: bool
+    is_repl: bool,
 }
 
 impl Lox {
@@ -22,18 +22,17 @@ impl Lox {
         Lox {
             error: LoxErrorHandler::new(),
             interpreter: Interpreter::new(),
-            is_repl: false
+            is_repl: false,
         }
     }
 
-    fn run(&mut self, file: &String) {
+    fn run(&mut self, file: &str) {
         let mut scanner = Scanner::new(file, &self.error);
         if let Ok(tokens) = scanner.scan_tokens() {
             let mut parser = Parser::new(tokens);
 
             if let Ok(stmts) = parser.parse() {
-                if let Err(err) = self.interpreter.interpret(stmts) {
-                };
+                if let Err(_err) = self.interpreter.interpret(stmts) {};
             }
         }
     }

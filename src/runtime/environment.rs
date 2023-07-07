@@ -1,9 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    error::{LoxResult, LoxErrorsTypes, loxerrorhandler::LoxErrorHandler},
+    error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
+    lexer::literal::*,
     lexer::token::Token,
-    lexer::literal::*
 };
 #[derive(Clone)]
 pub struct Environment {
@@ -25,7 +25,7 @@ impl Environment {
             loop_started: false,
             continue_encountered: false,
             natives: HashMap::new(),
-            id: 0
+            id: 0,
         }
     }
 
@@ -38,7 +38,7 @@ impl Environment {
             continue_encountered: false,
             loop_started: false,
             natives: HashMap::new(),
-            id
+            id,
         }
     }
 
@@ -46,7 +46,7 @@ impl Environment {
         if self.env.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
-                LoxErrorsTypes::RuntimeError("Cannot redefine variable".to_string()),
+                LoxErrorsTypes::Runtime("Cannot redefine variable".to_string()),
             ));
         }
         self.env.insert(name.lexeme.to_string(), val);
@@ -58,7 +58,7 @@ impl Environment {
         if self.env.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
-                LoxErrorsTypes::RuntimeError("Cannot redefine variable".to_string()),
+                LoxErrorsTypes::Runtime("Cannot redefine variable".to_string()),
             ));
         }
         self.env.insert(name.lexeme.to_string(), val);
@@ -69,7 +69,7 @@ impl Environment {
         if self.natives.contains_key(&name.lexeme) {
             return Err(self.error_handler.error(
                 name,
-                LoxErrorsTypes::RuntimeError("Cannot overwrite language feature".to_string()),
+                LoxErrorsTypes::Runtime("Cannot overwrite language feature".to_string()),
             ));
         }
         if self.env.contains_key(&name.lexeme) {
@@ -83,7 +83,7 @@ impl Environment {
 
         Err(self.error_handler.error(
             name,
-            LoxErrorsTypes::RuntimeError("Cannot mutate undefined variable".to_string()),
+            LoxErrorsTypes::Runtime("Cannot mutate undefined variable".to_string()),
         ))
     }
 
@@ -95,7 +95,7 @@ impl Environment {
         }
         Err(self.error_handler.error(
             name,
-            LoxErrorsTypes::RuntimeError("Undefined variable".to_string()),
+            LoxErrorsTypes::Runtime("Undefined variable".to_string()),
         ))
     }
 }
