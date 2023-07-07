@@ -1,6 +1,6 @@
 pub mod loxerrorhandler;
 
-use crate::lexer::token::Token;
+use crate::lexer::{token::Token, literal::Literal};
 
 #[allow(dead_code)]
 pub enum LoxErrorsTypes {
@@ -101,5 +101,5 @@ pub enum LoxResult {
     LoxWarning(LoxWarning),
     LoxBreak,
     LoxContinue,
-    LoxReturn,
+    LoxReturn(Literal),
 }

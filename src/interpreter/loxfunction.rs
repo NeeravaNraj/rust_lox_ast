@@ -38,8 +38,16 @@ impl LoxCallable for LoxFunction {
                 env.define(&d, val.dup())?;
             }
         }
-        interpreter.execute_block(&self.body, env)?;
-        return Ok(Literal::None);
+        // for arg in args {
+        //     arg.print_value();
+        // }
+        if let Err(ret_val) = interpreter.execute_block(&self.body, env) {
+            match ret_val {
+                LoxResult::LoxReturn(value) => return Ok(value),
+                _ => return Err(ret_val)
+            }
+        }
+        Ok(Literal::None)
     }
 
     fn arity(&self) -> usize {

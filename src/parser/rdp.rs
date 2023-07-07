@@ -172,16 +172,20 @@ impl<'a> Parser<'a>{
         
         let mut initializer: Option<Box<Stmt>> = None;
 
-        if self.match_single_token(TokenType::Let) {
+        if self.peek().token_type == TokenType::Let {
+            self.match_single_token(TokenType::Let);
             initializer = Some(self.var_declaration()?);
-        } else {
+        } else if !self.check(TokenType::Semicolon){
             initializer = Some(self.expr_statement()?);
+        } else {
+            self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected variable declaration or expression, got".to_string()))?;
         }
 
         let mut condition: Option<Box<Expr>> = None;
         if !self.check(TokenType::Semicolon) {
             condition = Some(self.expression()?);
         }
+
         self.consume(TokenType::Semicolon, LoxErrorsTypes::SyntaxError("Expected ';' after loop condition".to_string()))?;
         
         let mut increment: Option<Box<Expr>> = None;
@@ -191,26 +195,8 @@ impl<'a> Parser<'a>{
 
         self.consume(TokenType::RightParen, LoxErrorsTypes::SyntaxError("Expected ')' after for clauses".to_string()))?;
 
-        let mut body = self.statement()?;
+        let body = self.statement()?;
 
-
-        // if increment.is_some() {
-        //     let stmts: Vec<Box<Stmt>> = vec![
-        //         body, 
-        //         Box::new(Stmt::Expression(ExpressionStmt::new(increment.unwrap())))
-        //     ];
-        //     body = Box::new(Stmt::Block(BlockStmt::new(stmts)))
-        // }
-        //
-        // if !condition.is_some() {
-        //     condition = Some(Box::new(Expr::Literal(LiteralExpr::new(Literal::Bool(true)))));
-        // }
-        // body = Box::new(Stmt::While(WhileStmt::new(condition.unwrap(), body)));
-        //
-        // if initializer.is_some() {
-        //     let stmts = vec![initializer.unwrap(), body];
-        //     body = Box::new(Stmt::Block(BlockStmt::new(stmts)));
-        // }
         Ok(
             Box::new(
                 Stmt::For(

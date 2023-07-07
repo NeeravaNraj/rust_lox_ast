@@ -263,7 +263,15 @@ impl Interpreter {
                     self.environment.borrow().borrow().continue_encountered;
                 break;
             }
-            self.execute(stmt)?;
+            if let Err(val) = self.execute(stmt) {
+                match val {
+                    LoxResult::LoxReturn(_) => {
+                        self.environment.replace(prev);
+                        return Err(val)
+                    },
+                    _ => return Err(val)
+                }
+            }
         }
         self.environment.replace(prev);
         Ok(())
@@ -541,7 +549,8 @@ impl VisitorStmt<()> for Interpreter {
     }
 
     fn visit_return_stmt(&self, stmt: &ReturnStmt, _: u16) -> Result<(), LoxResult> {
-        Ok(())
+        let value = self.evaluate(&stmt.value)?;
+        Err(LoxResult::LoxReturn(value))
     }
 
     fn visit_for_stmt(&self, stmt: &ForStmt, _: u16) -> Result<(), LoxResult> {
@@ -552,6 +561,28 @@ impl VisitorStmt<()> for Interpreter {
         if !stmt.condition.is_none() {
             self.environment.borrow().borrow_mut().loop_started = true;
             while self.is_truthy(&self.evaluate(stmt.condition.as_ref().unwrap())?) {
+                if let Err(e) = self.execute(&stmt.body) {
+                    match e {
+                        LoxResult::LoxError(error) => return Err(LoxResult::LoxError(error)),
+                        LoxResult::LoxBreak => break,
+                        LoxResult::LoxContinue => {
+                        }
+                        _ => {}
+                    }
+                }
+                if self.environment.borrow().borrow().continue_encountered {
+                    if !stmt.update_expr.is_none() {
+                        self.evaluate(stmt.update_expr.as_ref().unwrap())?;
+                    }
+                    continue;
+                }
+                if !stmt.update_expr.is_none() {
+                    self.evaluate(stmt.update_expr.as_ref().unwrap())?;
+                }
+            }
+        } else {
+            self.environment.borrow().borrow_mut().loop_started = true;
+            loop {
                 if let Err(e) = self.execute(&stmt.body) {
                     match e {
                         LoxResult::LoxError(error) => return Err(LoxResult::LoxError(error)),
