@@ -196,9 +196,10 @@ impl<'a> Scanner<'a> {
             ')' => self.add_token(TokenType::RightParen),
             '{' => self.add_token(TokenType::LeftBrace),
             '}' => self.add_token(TokenType::RightBrace),
-            '[' => self.add_token(TokenType::RightBracket),
-            ']' => self.add_token(TokenType::LeftBracket),
+            '[' => self.add_token(TokenType::LeftBracket),
+            ']' => self.add_token(TokenType::RightBracket),
             ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
             '-' => {
                 let token = if self.is_match('=') {
                     TokenType::MinusEqual
@@ -329,6 +330,7 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("break"), TokenType::Break);
         hmap.insert(String::from("continue"), TokenType::Continue);
         hmap.insert(String::from("fn"), TokenType::DefFn);
+        hmap.insert(String::from("class"), TokenType::Class);
     }
 
     fn get_literal_type(&self, token: &TokenType) -> Literal {
@@ -344,3 +346,218 @@ impl<'a> Scanner<'a> {
         matches!(*token, TokenType::True | TokenType::False | TokenType::None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_char_tokens() {
+        let src = "(){}[],.-+*/;?:";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected = vec![
+            TokenType::LeftParen,
+            TokenType::RightParen,
+            TokenType::LeftBrace,
+            TokenType::RightBrace,
+            TokenType::LeftBracket,
+            TokenType::RightBracket,
+            TokenType::Comma,
+            TokenType::Dot,
+            TokenType::Minus,
+            TokenType::Plus,
+            TokenType::Star,
+            TokenType::Slash,
+            TokenType::Semicolon,
+            TokenType::QuestionMark,
+            TokenType::Colon,
+            TokenType::EOF
+        ];
+
+        let lexemes = vec![
+            String::from("("),
+            String::from(")"),
+            String::from("{"),
+            String::from("}"),
+            String::from("["),
+            String::from("]"),
+            String::from(","),
+            String::from("."),
+            String::from("-"),
+            String::from("+"),
+            String::from("*"),
+            String::from("/"),
+            String::from(";"),
+            String::from("?"),
+            String::from(":"),
+        ];
+
+        match s.scan_tokens() {
+            Ok(toks) => {
+                assert_eq!(expected.len(), toks.len());
+                for (i, val) in toks.iter().enumerate() {
+                    assert_eq!(&val.token_type, expected.get(i).unwrap());
+                    if let Some(lit) = lexemes.get(i) {
+                        assert_eq!(&val.lexeme, lit);
+                    }
+                }
+            },
+            Err(_) => panic!("failed")
+        }        
+    }
+
+    #[test]
+    fn multiple_character_tokens() {
+        let src = "! != += -= *= /= = == > >= < <=";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected = vec![
+            TokenType::Bang,
+            TokenType::BangEqual,
+            TokenType::PlusEqual,
+            TokenType::MinusEqual,
+            TokenType::StarEqual,
+            TokenType::SlashEqual,
+            TokenType::Assign,
+            TokenType::Equals,
+            TokenType::Greater,
+            TokenType::GreaterEqual,
+            TokenType::Less,
+            TokenType::LessEqual,
+            TokenType::EOF
+        ];
+
+        let lexemes = vec![
+            String::from("!"),
+            String::from("!="),
+            String::from("+="),
+            String::from("-="),
+            String::from("*="),
+            String::from("/="),
+            String::from("="),
+            String::from("=="),
+            String::from(">"),
+            String::from(">="),
+            String::from("<"),
+            String::from("<="),
+        ];
+        match s.scan_tokens() {
+            Ok(toks) => {
+                assert_eq!(expected.len(), toks.len());
+                for (i, val) in toks.iter().enumerate() {
+                    assert_eq!(&val.token_type, expected.get(i).unwrap());
+                    if let Some(lex) = lexemes.get(i) {
+                        assert_eq!(&val.lexeme, lex);
+                    }
+                }
+            },
+            Err(_) => panic!("failed")
+        }        
+    }
+
+    #[test]
+    fn literal_tokens() {
+        let src = "identifier \"string\" 123";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected_token = vec![
+            TokenType::Identifier,
+            TokenType::String,
+            TokenType::Number,
+            TokenType::EOF
+        ];
+
+        let literals = vec![
+            None,
+            Some(Literal::Str(String::from("string"))),
+            Some(Literal::Number(123_f64))
+        ];
+
+        let lexemes = vec![
+            String::from("identifier"),
+            String::from("\"string\""),
+            String::from("123"),
+        ];
+
+        match s.scan_tokens() {
+            Ok(toks) => {
+                assert_eq!(expected_token.len(), toks.len());
+                for (i, val) in toks.iter().enumerate() {
+                    assert_eq!(&val.token_type, expected_token.get(i).unwrap());
+                    if let Some(lit) = literals.get(i) {
+                        assert_eq!(&val.literal, lit);
+                    };
+                    if let Some(lexeme) = lexemes.get(i) {
+                        assert_eq!(&val.lexeme, lexeme);
+                    };
+                }
+            },
+            Err(_) => panic!("failed")
+        }        
+    }
+
+    #[test]
+    fn keyword_tokens() {
+        let src = "and class else false fn for if or print return super this true let none while break continue";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected_token = vec![
+            TokenType::And,
+            TokenType::Class,
+            TokenType::Else,
+            TokenType::False,
+            TokenType::DefFn,
+            TokenType::For,
+            TokenType::If,
+            TokenType::Or,
+            TokenType::Print,
+            TokenType::Return,
+            TokenType::Super,
+            TokenType::This,
+            TokenType::True,
+            TokenType::Let,
+            TokenType::None,
+            TokenType::While,
+            TokenType::Break,
+            TokenType::Continue,
+            TokenType::EOF
+        ];
+
+        let lexemes = vec![
+            String::from("and"),
+            String::from("class"),
+            String::from("else"),
+            String::from("false"),
+            String::from("fn"),
+            String::from("for"),
+            String::from("if"),
+            String::from("or"),
+            String::from("print"),
+            String::from("return"),
+            String::from("super"),
+            String::from("this"),
+            String::from("true"),
+            String::from("let"),
+            String::from("none"),
+            String::from("while"),
+            String::from("break"),
+            String::from("continue"),
+            String::from(""),
+        ];
+
+        match s.scan_tokens() {
+            Ok(toks) => {
+                assert_eq!(expected_token.len(), toks.len());
+                for (i, val) in toks.iter().enumerate() {
+                    assert_eq!(&val.token_type, expected_token.get(i).unwrap());
+                    if let Some(lexeme) = lexemes.get(i) {
+                        assert_eq!(&val.lexeme, lexeme);
+                    };
+                }
+            },
+            Err(_) => panic!("failed")
+        }        
+    }
+}
+

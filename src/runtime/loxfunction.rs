@@ -32,7 +32,7 @@ impl LoxFunction {
 impl Display for LoxFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.name.is_some() {
-            return write!(f, "<Fn {}>", self.name.as_ref().unwrap())
+            return write!(f, "<Fn {}>", self.name.as_ref().unwrap().lexeme)
         } 
         write!(f, "<Lamba>")
     }
@@ -61,7 +61,7 @@ impl LoxCallable for LoxFunction {
 
     fn to_string(&self) -> String {
         if self.name.is_some() {
-            return self.name.as_ref().unwrap().to_string()
+            return format!("<Fn {}>", self.name.as_ref().unwrap().lexeme)
         }
         String::from("<Lambda>")
     }
