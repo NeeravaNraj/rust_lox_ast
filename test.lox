@@ -16,8 +16,3 @@ let a = c();
 a();
 a();
 a();
-
-print foo;
-
-print c;
-print a;

@@ -2,7 +2,7 @@ pub mod loxerrorhandler;
 
 use crate::lexer::{literal::Literal, token::Token};
 
-#[allow(dead_code)]
+#[derive(Debug, PartialEq)]
 pub enum LoxErrorsTypes {
     Lexer(String),
     Syntax(String),
@@ -49,10 +49,10 @@ impl ToString for LoxErrorsTypes {
     }
 }
 
-#[allow(dead_code)]
+#[derive(Debug, PartialEq)]
 pub enum LoxWarningTypes {}
 
-#[allow(dead_code)]
+#[derive(Debug, PartialEq)]
 pub struct LoxWarning {
     pub has_warning: bool,
     pub warning_type: LoxWarningTypes,
@@ -60,6 +60,7 @@ pub struct LoxWarning {
     pub line: i32,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct LoxError {
     pub has_error: bool,
     pub error_type: LoxErrorsTypes,
@@ -97,6 +98,7 @@ impl LoxError {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum LoxResult {
     Error(LoxError),
     Warning(LoxWarning),

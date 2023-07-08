@@ -331,8 +331,8 @@ impl<'a> Parser<'a> {
             while self.match_single_token(TokenType::Comma) {
                 if params.len() >= 255 {
                     self.error_handler.error(
-                        self.peek(), 
-                        LoxErrorsTypes::Syntax("Can't have more than 255 parameters".to_string())
+                        self.peek(),
+                        LoxErrorsTypes::Syntax("Can't have more than 255 parameters".to_string()),
                     );
                 }
                 params.push(self.consume(
@@ -685,5 +685,672 @@ impl<'a> Parser<'a> {
 
             self.advance();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Add;
+
+    use super::*;
+    use crate::Scanner;
+
+    struct AstTraverser<'a> {
+        statements: &'a Vec<Stmt>,
+        strings: Vec<String>,
+    }
+
+    impl<'a> AstTraverser<'a> {
+        fn new(statements: &'a Vec<Stmt>) -> Self {
+            Self {
+                statements,
+                strings: Vec::new(),
+            }
+        }
+
+        fn gen(&mut self) -> Result<&Vec<String>, LoxResult> {
+            for stmt in self.statements {
+                let str = self.execute(&stmt)?;
+                self.strings.push(str);
+            }
+            Ok(&self.strings)
+        }
+
+        fn evaluate(&self, expr: &Expr) -> Result<String, LoxResult> {
+            expr.accept(self, 0_u16)
+        }
+
+        fn execute(&self, stmt: &Stmt) -> Result<String, LoxResult> {
+            stmt.accept(self, 0_u16)
+        }
+    }
+
+    impl<'a> VisitorExpr<String> for AstTraverser<'a> {
+        fn visit_call_expr(&self, expr: &CallExpr, _: u16) -> Result<String, LoxResult> {
+            let callee = self.evaluate(&expr.callee)?;
+            let mut str = format!("CallExpr {callee}");
+            for arg in &expr.args {
+                str = str.add(&self.evaluate(&arg)?);
+            }
+
+            Ok(str)
+        }
+
+        fn visit_unary_expr(&self, expr: &UnaryExpr, _: u16) -> Result<String, LoxResult> {
+            let op = &expr.operator.lexeme;
+            let right = self.evaluate(&expr.right)?;
+            let str = format!("UnaryExpr {op} {right}");
+            Ok(str)
+        }
+
+        fn visit_binary_expr(&self, expr: &BinaryExpr, _: u16) -> Result<String, LoxResult> {
+            let left = self.evaluate(&expr.left)?;
+            let right = self.evaluate(&expr.right)?;
+            let str = format!("BinaryExpr {left} {} {right}", expr.operator.lexeme);
+            Ok(str)
+        }
+
+        fn visit_assign_expr(&self, expr: &AssignExpr, _: u16) -> Result<String, LoxResult> {
+            let val = self.evaluate(&expr.value)?;
+            Ok(format!("AssignExpr {} = {val}", expr.name.lexeme))
+        }
+
+        fn visit_lambda_expr(&self, expr: &LambdaExpr, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("LambdaExpr ");
+
+            Ok(str)
+        }
+
+        fn visit_logical_expr(&self, expr: &LogicalExpr, _: u16) -> Result<String, LoxResult> {
+            let left = self.evaluate(&expr.left)?;
+            let right = self.evaluate(&expr.right)?;
+            let str = format!("LogicalExpr {left} {} {right}", expr.operator.lexeme);
+
+            Ok(str)
+        }
+
+        fn visit_literal_expr(&self, expr: &LiteralExpr, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("LiteralExpr {}", expr.value);
+            Ok(str)
+        }
+
+        fn visit_ternary_expr(&self, expr: &TernaryExpr, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("TernaryExpr ");
+
+            Ok(str)
+        }
+
+        fn visit_grouping_expr(&self, expr: &GroupingExpr, _: u16) -> Result<String, LoxResult> {
+            let inner = self.evaluate(&expr.expression)?;
+            let str = format!("GroupingExpr ({inner})");
+
+            Ok(str)
+        }
+
+        fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<String, LoxResult> {
+            let str = format!("VariableExpr {}", expr.name.lexeme);
+            Ok(str)
+        }
+
+        fn visit_compoundassign_expr(
+            &self,
+            expr: &CompoundAssignExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
+            let mut str = format!("CompoundAssignExpr ");
+
+            Ok(str)
+        }
+    }
+
+    impl<'a> VisitorStmt<String> for AstTraverser<'a> {
+        fn visit_if_stmt(&self, stmt: &IfStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("IfStmt ");
+
+            Ok(str)
+        }
+
+        fn visit_let_stmt(&self, stmt: &LetStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("LetStmt ");
+
+            Ok(str)
+        }
+
+        fn visit_for_stmt(&self, stmt: &ForStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("ForStmt");
+
+            Ok(str)
+        }
+
+        fn visit_print_stmt(&self, stmt: &PrintStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("PrintStmt");
+
+            Ok(str)
+        }
+
+        fn visit_block_stmt(&self, stmt: &BlockStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("BlockStmt");
+
+            Ok(str)
+        }
+
+        fn visit_while_stmt(&self, stmt: &WhileStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("WhileStmt");
+
+            Ok(str)
+        }
+
+        fn visit_break_stmt(&self, stmt: &BreakStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("BreakStmt");
+
+            Ok(str)
+        }
+
+        fn visit_return_stmt(&self, stmt: &ReturnStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("ReturnStmt");
+
+            Ok(str)
+        }
+
+        fn visit_continue_stmt(&self, stmt: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("ContinueStmt");
+
+            Ok(str)
+        }
+
+        fn visit_function_stmt(&self, stmt: &FunctionStmt, _: u16) -> Result<String, LoxResult> {
+            let mut str = format!("FunctionStmt ");
+
+            Ok(str)
+        }
+
+        fn visit_expression_stmt(
+            &self,
+            stmt: &ExpressionStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
+            let expr = self.evaluate(&stmt.expr)?;
+            let str = format!("ExpressionStmt {expr}");
+            Ok(str)
+        }
+    }
+
+    fn perform(src: &str, expected: Vec<&str>) {
+        let e_handler = LoxErrorHandler::new();
+        let mut scanner = Scanner::new(src, &e_handler);
+        if let Ok(tokens) = scanner.scan_tokens() {
+            let mut parser = Parser::new(tokens);
+            if let Ok(ast) = parser.parse() {
+                let mut tr = AstTraverser::new(&ast);
+                match tr.gen() {
+                    Ok(strings) => {
+                        for (a, b) in strings.iter().zip(expected.iter()) {
+                            assert_eq!(a, b);
+                        }
+                    }
+                    Err(_) => panic!("failed {src}"),
+                }
+            } else {
+                panic!("failed {src}")
+            }
+        } else {
+            panic!("failed {src}")
+        }
+    }
+
+    fn perform_err(src: &str, expected: LoxErrorsTypes) {
+        let e_handler = LoxErrorHandler::new();
+        let mut scanner = Scanner::new(src, &e_handler);
+        if let Ok(tokens) = scanner.scan_tokens() {
+            let mut parser = Parser::new(tokens);
+            match parser.parse() {
+                Ok(_) => panic!("failed {src}"),
+                Err(err) => match err {
+                    LoxResult::Error(err) => assert_eq!(err.error_type, expected),
+                    _ => {}
+                },
+            }
+        } else {
+            panic!("failed {src}")
+        }
+    }
+
+    #[test]
+    fn binary_add_numbers() {
+        let src = "1 + 2;";
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn binary_sub_numbers() {
+        let src = "1 - 2;";
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } - LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn binary_mul_numbers() {
+        let src = "1 * 2;";
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } * LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn binary_div_numbers() {
+        let src = "1 / 2;";
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } / LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn binary_predence_number() {
+        let src = "6 / 3 - 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr BinaryExpr LiteralExpr Number { 6 } / LiteralExpr Number { 3 } - LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn binary_grouping_numbers() {
+        let src = "(1 / 2);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr LiteralExpr Number { 1 } / LiteralExpr Number { 2 })"];
+        perform(src, expected);
+    }
+    #[test]
+    fn binary_add_strings() {
+        let src = "\"str\" + \"str\";";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr String { \"str\" } + LiteralExpr String { \"str\" }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_add_grouping() {
+        let src = "(1 * 2) + 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr GroupingExpr (BinaryExpr LiteralExpr Number { 1 } * LiteralExpr Number { 2 }) + LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_add_complex() {
+        let src = "(1 * 2) + (6 / 3);";
+        let expected = vec!["ExpressionStmt BinaryExpr GroupingExpr (BinaryExpr LiteralExpr Number { 1 } * LiteralExpr Number { 2 }) + GroupingExpr (BinaryExpr LiteralExpr Number { 6 } / LiteralExpr Number { 3 })"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_add_fn_call() {
+        let src = "function() + function();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr function + CallExpr VariableExpr function"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_add_err() {
+        let src = "1 + ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn grouping_err() {
+        let src = "(1 + 2 + 3";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after expression, at".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn expr_semicolon_err() {
+        let src = "13";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_variable_add() {
+        let src = "a + b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a + VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_variable_sub() {
+        let src = "a - b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a - VariableExpr b"];
+        perform(src, expected)
+    }
+
+
+    #[test]
+    fn binary_variable_mul() {
+        let src = "a * b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a * VariableExpr b"];
+        perform(src, expected)
+    }
+
+
+    #[test]
+    fn binary_variable_div() {
+        let src = "a / b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a / VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_variable_grouping_binary() {
+        let src = "(a - c) / b;";
+        let expected = vec!["ExpressionStmt BinaryExpr GroupingExpr (BinaryExpr VariableExpr a - VariableExpr c) / VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binry_fn_call_grouping() {
+        let src = "(a() - b()) * c();";
+        let expected = vec!["ExpressionStmt BinaryExpr GroupingExpr (BinaryExpr CallExpr VariableExpr a - CallExpr VariableExpr b) * CallExpr VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_super_complex() {
+        let src = "(a() - x) * c() + (x / 2);";
+        let expected = vec!["ExpressionStmt BinaryExpr BinaryExpr GroupingExpr (BinaryExpr CallExpr VariableExpr a - VariableExpr x) * CallExpr VariableExpr c + GroupingExpr (BinaryExpr VariableExpr x / LiteralExpr Number { 2 })"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_equality() {
+        let src = "1 == 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_inequality() {
+        let src = "1 != 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } != LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_greater() {
+        let src = "1 > 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } > LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_greater_equal() {
+        let src = "1 >= 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } >= LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_less() {
+        let src = "1 < 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } < LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_less_equal() {
+        let src = "1 <= 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } <= LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_equality() {
+        let src = "a == b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a == VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_inequality() {
+        let src = "a != b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a != VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_greater() {
+        let src = "a > b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a > VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_greater_equal() {
+        let src = "a >= b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a >= VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_less() {
+        let src = "a < b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a < VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_less_equal() {
+        let src = "a <= b;";
+        let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a <= VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_equality() {
+        let src = "a() == b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a == CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_inequality() {
+        let src = "a() != b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a != CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_greater() {
+        let src = "a() > b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a > CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_greater_equal() {
+        let src = "a() >= b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a >= CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_less() {
+        let src = "a() < b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a < CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_fn_less_equal() {
+        let src = "a() <= b();";
+        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a <= CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_equality() {
+        let src = "(a == b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_inequality() {
+        let src = "(a != b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a != VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_greater() {
+        let src = "(a > b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a > VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_greater_equal() {
+        let src = "(a >= b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a >= VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_less() {
+        let src = "(a < b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a < VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn binary_logical_variable_grouping_less_equal() {
+        let src = "(a <= b);";
+        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a <= VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate() {
+        let src = "-1;";
+        let expected = vec!["ExpressionStmt UnaryExpr - LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_arithmetic() {
+        let src = "-3 + 2;";
+        let expected = vec!["ExpressionStmt BinaryExpr UnaryExpr - LiteralExpr Number { 3 } + LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_grouping() {
+        let src = "-(3 + 2);";
+        let expected = vec!["ExpressionStmt UnaryExpr - GroupingExpr (BinaryExpr LiteralExpr Number { 3 } + LiteralExpr Number { 2 })"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_variable() {
+        let src = "-a;";
+        let expected = vec!["ExpressionStmt UnaryExpr - VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_variable_arithmetic() {
+        let src = "-a * b;";
+        let expected = vec!["ExpressionStmt BinaryExpr UnaryExpr - VariableExpr a * VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_variable_grouping() {
+        let src = "-(a * b);";
+        let expected = vec!["ExpressionStmt UnaryExpr - GroupingExpr (BinaryExpr VariableExpr a * VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_fn() {
+        let src = "-func();";
+        let expected = vec!["ExpressionStmt UnaryExpr - CallExpr VariableExpr func"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_fn_arithmetic() {
+        let src = "-func() + func_b();";
+        let expected = vec!["ExpressionStmt BinaryExpr UnaryExpr - CallExpr VariableExpr func + CallExpr VariableExpr func_b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_fn_grouping() {
+        let src = "-(func() + func_b());";
+        let expected = vec!["ExpressionStmt UnaryExpr - GroupingExpr (BinaryExpr CallExpr VariableExpr func + CallExpr VariableExpr func_b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_bool() {
+        let src = "!true;";
+        let expected = vec!["ExpressionStmt UnaryExpr ! LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_variable() {
+        let src = "!a;";
+        let expected = vec!["ExpressionStmt UnaryExpr ! VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_fn() {
+        let src = "!a();";
+        let expected = vec!["ExpressionStmt UnaryExpr ! CallExpr VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_binary_grouping() {
+        let src = "!(1 == 2);";
+        let expected = vec!["ExpressionStmt UnaryExpr ! GroupingExpr (BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 })"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_binary_grouping_variale() {
+        let src = "!(a == b);";
+        let expected = vec!["ExpressionStmt UnaryExpr ! GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn unary_not_binary_grouping_fn() {
+        let src = "!(a() == b());";
+        let expected = vec!["ExpressionStmt UnaryExpr ! GroupingExpr (BinaryExpr CallExpr VariableExpr a == CallExpr VariableExpr b)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_and() {
+        let src = "true and true;";
+        let expected = vec!["ExpressionStmt LogicalExpr LiteralExpr true and LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_or() {
+        let src = "true or true;";
+        let expected = vec!["ExpressionStmt LogicalExpr LiteralExpr true or LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_and_variable() {
+        let src = "a and b;";
+        let expected = vec!["ExpressionStmt LogicalExpr VariableExpr a and VariableExpr b"];
+        perform(src, expected)
     }
 }

@@ -93,7 +93,7 @@ impl<'a> Scanner<'a> {
         })
     }
 
-    fn string(&mut self) {
+    fn string(&mut self) -> Result<(), LoxResult> {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -102,11 +102,10 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.error_handler.simple_error(
+            return Err(self.error_handler.simple_error(
                 self.line - 1,
                 LoxErrorsTypes::Syntax("String was not terminated".to_string()),
-            );
-            return;
+            ))
         }
 
         self.advance();
@@ -116,6 +115,7 @@ impl<'a> Scanner<'a> {
             .iter()
             .collect();
         self.add_literal(TokenType::String, Some(Literal::Str(value)));
+        Ok(())
     }
 
     fn number(&mut self) {
@@ -156,19 +156,19 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn block_comment(&mut self) {
+    fn block_comment(&mut self) -> Result<(), LoxResult>{
         loop {
             match self.peek() {
                 '/' => {
                     self.advance();
                     if self.is_match('*') {
-                        self.block_comment();
+                        self.block_comment()?;
                     }
                 }
                 '*' => {
                     self.advance();
                     if self.is_match('/') {
-                        return;
+                        return Ok(());
                     }
                 }
                 '\n' => {
@@ -176,11 +176,10 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
                 '\0' => {
-                    self.error_handler.simple_error(
+                    return Err(self.error_handler.simple_error(
                         self.line - 1,
                         LoxErrorsTypes::Syntax("Comment block was not terminated".to_string()),
-                    );
-                    return;
+                    ))
                 }
                 _ => {
                     self.advance();
@@ -265,7 +264,7 @@ impl<'a> Scanner<'a> {
                         self.advance();
                     }
                 } else if self.is_match('*') {
-                    self.block_comment();
+                    self.block_comment()?;
                 } else if self.is_match('=') {
                     self.add_token(TokenType::SlashEqual);
                 } else {
@@ -274,7 +273,7 @@ impl<'a> Scanner<'a> {
             }
             _ if c.is_ascii_alphabetic() => self.identifier(),
             '0'..='9' => self.number(),
-            '"' => self.string(),
+            '"' => self.string()?,
             ' ' => (),
             '\r' => (),
             '\t' => (),
@@ -557,7 +556,64 @@ mod tests {
                 }
             },
             Err(_) => panic!("failed")
-        }        
+        }
+    }
+
+    #[test]
+    fn unknown_character() {
+        let src = "$";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected = LoxErrorsTypes::Syntax("Unknown character $".to_string());
+        match s.scan_tokens() {
+            Ok(_) => panic!("failed"),
+            Err(err) => {
+                match err {
+                    LoxResult::Error(err) => {
+                        assert_eq!(err.error_type, expected);
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn string_termination_err() {
+        let src = "\"awdawdawdadadad";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected = LoxErrorsTypes::Syntax("String was not terminated".to_string());
+        match s.scan_tokens() {
+            Ok(_) => panic!("failed"),
+            Err(err) => {
+                match err {
+                    LoxResult::Error(err) => {
+                        assert_eq!(err.error_type, expected);
+                    },
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn comment_termination_err() {
+        let src = "/* awdawdawdadadad";
+        let e_handler = LoxErrorHandler::new();
+        let mut s = Scanner::new(src, &e_handler);
+        let expected = LoxErrorsTypes::Syntax("Comment block was not terminated".to_string());
+        match s.scan_tokens() {
+            Ok(_) => panic!("failed"),
+            Err(err) => {
+                match err {
+                    LoxResult::Error(err) => {
+                        assert_eq!(err.error_type, expected);
+                    },
+                    _ => {}
+                }
+            }
+        }
     }
 }
 

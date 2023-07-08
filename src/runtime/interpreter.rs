@@ -76,12 +76,22 @@ impl Interpreter {
     }
 
     fn check_num_unary(&self, operator: &Token, operand: &Literal) -> Result<(), LoxResult> {
-        if operand.get_typename() == "Number" {
+        let err_type = if operator.lexeme == "-" {
+            "number"
+        } else {
+            "bool"
+        };
+        if operator.lexeme == "-" && operand.get_typename() == "Number" {
             return Ok(());
         }
+
+        if operator.lexeme == "!" && operand.get_typename() == "Bool" {
+            return Ok(());
+        }
+        
         Err(self.error_handler.error(
             operator,
-            LoxErrorsTypes::Syntax("Operand must be a number".to_string()),
+            LoxErrorsTypes::Syntax(format!("Operant must be a {}", err_type)),
         ))
     }
 
@@ -277,7 +287,7 @@ impl VisitorExpr<Literal> for Interpreter {
         self.check_num_unary(&expr.operator, &right)?;
         match expr.operator.token_type {
             TokenType::Minus => Ok(Literal::Number(-right.unwrap_number())),
-            TokenType::Bang => Ok(Literal::Bool(self.is_truthy(&right))),
+            TokenType::Bang => Ok(Literal::Bool(!self.is_truthy(&right))),
             _ => unreachable!("Unary evaluation reached unreachable state."),
         }
     }
