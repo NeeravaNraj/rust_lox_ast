@@ -42,6 +42,7 @@ pub enum TokenType {
     Else,
     False,
     DefFn,
+    DefLambda,
     For,
     If,
     Or,

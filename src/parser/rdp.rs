@@ -391,7 +391,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        if self.match_single_token(TokenType::DefFn) {
+        if self.match_single_token(TokenType::DefLambda) {
             return self.lambda_fn();
         }
 
@@ -756,7 +756,21 @@ mod tests {
         }
 
         fn visit_lambda_expr(&self, expr: &LambdaExpr, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("LambdaExpr ");
+            let mut params = "".to_string();
+            for (i, param) in expr.params.iter().enumerate() {
+                params.push_str(&param.lexeme);
+                if expr.params.len() - 1 != i {
+                    params.push_str(", ");
+                }
+            }
+            let mut body = "{ ".to_string();
+
+            for stmt in expr.body.iter() {
+                body.push_str(&self.execute(&stmt)?);
+            }
+
+            body.push_str(" }");
+            let str = format!("LambdaExpr lm({}) {}", params.trim(), body);
 
             Ok(str)
         }
@@ -775,7 +789,10 @@ mod tests {
         }
 
         fn visit_ternary_expr(&self, expr: &TernaryExpr, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("TernaryExpr ");
+            let left = self.evaluate(&expr.left)?;
+            let middle = self.evaluate(&expr.middle)?;
+            let right = self.evaluate(&expr.right)?;
+            let str = format!("TernaryExpr {left} ? {middle} : {right}");
 
             Ok(str)
         }
@@ -797,8 +814,8 @@ mod tests {
             expr: &CompoundAssignExpr,
             _: u16,
         ) -> Result<String, LoxResult> {
-            let mut str = format!("CompoundAssignExpr ");
-
+            let val = self.evaluate(&expr.value)?;
+            let str = format!("CompoundAssignExpr {} {} {val}", expr.name.lexeme, expr.operator.lexeme);
             Ok(str)
         }
     }
@@ -811,8 +828,11 @@ mod tests {
         }
 
         fn visit_let_stmt(&self, stmt: &LetStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("LetStmt ");
-
+            let mut initializer = "not initialized".to_string();
+            if stmt.initializer.is_some() {
+                initializer = self.evaluate(stmt.initializer.as_ref().unwrap())?;
+            }
+            let str = format!("LetStmt {} = {}", stmt.name.lexeme, initializer);
             Ok(str)
         }
 
@@ -823,7 +843,8 @@ mod tests {
         }
 
         fn visit_print_stmt(&self, stmt: &PrintStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("PrintStmt");
+            let expr = self.evaluate(&stmt.expr)?;
+            let str = format!("PrintStmt {expr}");
 
             Ok(str)
         }
@@ -847,7 +868,8 @@ mod tests {
         }
 
         fn visit_return_stmt(&self, stmt: &ReturnStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("ReturnStmt");
+            let val = self.evaluate(&stmt.value)?;
+            let str = format!("ReturnStmt {val}");
 
             Ok(str)
         }
@@ -1484,6 +1506,141 @@ mod tests {
     fn logical_complex() {
         let src = "!a() or b and (!c or d());";
         let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! CallExpr VariableExpr a or LogicalExpr VariableExpr b and GroupingExpr (LogicalExpr UnaryExpr ! VariableExpr c or CallExpr VariableExpr d)"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn variable() {
+        let src = "a;";
+        let expected = vec!["ExpressionStmt VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn variable_assignment() {
+        let src = "a = 1;";
+        let expected = vec!["ExpressionStmt AssignExpr a = LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn function_call() {
+        let src = "a();";
+        let expected = vec!["ExpressionStmt CallExpr VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn compound_assign_add() {
+        let src = "a += 1;";
+        let expected = vec!["ExpressionStmt CompoundAssignExpr a += LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn compound_assign_sub() {
+        let src = "a -= 1;";
+        let expected = vec!["ExpressionStmt CompoundAssignExpr a -= LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn compound_assign_mul() {
+        let src = "a *= 1;";
+        let expected = vec!["ExpressionStmt CompoundAssignExpr a *= LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn compound_assign_div() {
+        let src = "a /= 1;";
+        let expected = vec!["ExpressionStmt CompoundAssignExpr a /= LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn lambda_fn() {
+        let src = "lm() {};";
+        let expected = vec!["ExpressionStmt LambdaExpr lm() {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn lambda_fn_params() {
+        let src = "lm(a, b, c) {};";
+        let expected = vec!["ExpressionStmt LambdaExpr lm(a, b, c) {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn lambda_fn_body() {
+        let src = "lm(a, b, c) {
+            return 1 + 2;
+        };";
+        let expected = vec!["ExpressionStmt LambdaExpr lm(a, b, c) { ReturnStmt BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn ternary() {
+        let src = "true ? true : false;";
+        let expected = vec!["ExpressionStmt TernaryExpr LiteralExpr true ? LiteralExpr true : LiteralExpr false"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn ternary_simple() {
+        let src = "1 == 2 ? true : false;";
+        let expected = vec!["ExpressionStmt TernaryExpr BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 } ? LiteralExpr true : LiteralExpr false"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn ternary_simple_logical() {
+        let src = "a and b ? true : false;";
+        let expected = vec!["ExpressionStmt TernaryExpr LogicalExpr VariableExpr a and VariableExpr b ? LiteralExpr true : LiteralExpr false"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn ternary_nested() {
+        let src = "a and b ? a or b ? true : false : x == y ? true : false;";
+        let expected = vec!["ExpressionStmt TernaryExpr LogicalExpr VariableExpr a and VariableExpr b ? TernaryExpr LogicalExpr VariableExpr a or VariableExpr b ? LiteralExpr true : LiteralExpr false : TernaryExpr BinaryExpr VariableExpr x == VariableExpr y ? LiteralExpr true : LiteralExpr false"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn ternary_complex() {
+        let src = "a() == b ? !(x and y) : z == y;";
+        let expected = vec!["ExpressionStmt TernaryExpr BinaryExpr CallExpr VariableExpr a == VariableExpr b ? UnaryExpr ! GroupingExpr (LogicalExpr VariableExpr x and VariableExpr y) : BinaryExpr VariableExpr z == VariableExpr y"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn print_statement() {
+        let src = "print 1;";
+        let expected = vec!["PrintStmt LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn variable_declaration() {
+        let src = "let a = 1;";
+        let expected = vec!["LetStmt a = LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn variable_declaration_uninitialized() {
+        let src = "let a;";
+        let expected = vec!["LetStmt a = not initialized"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn variable_declaration_complex() {
+        let src = "let v = a() == b ? !(x and y) : z == y;";
+        let expected = vec!["LetStmt v = TernaryExpr BinaryExpr CallExpr VariableExpr a == VariableExpr b ? UnaryExpr ! GroupingExpr (LogicalExpr VariableExpr x and VariableExpr y) : BinaryExpr VariableExpr z == VariableExpr y"];
         perform(src, expected)
     }
 }
