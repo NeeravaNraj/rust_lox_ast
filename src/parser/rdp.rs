@@ -529,7 +529,7 @@ impl<'a> Parser<'a> {
 
         while self.match_single_token(TokenType::Or) {
             let op = self.previous();
-            let right = self.equality()?;
+            let right = self.and()?;
             expr = Expr::Logical(LogicalExpr::new(expr, op, right));
         }
         Ok(expr)
@@ -1351,6 +1351,139 @@ mod tests {
     fn logical_and_variable() {
         let src = "a and b;";
         let expected = vec!["ExpressionStmt LogicalExpr VariableExpr a and VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_or_variable() {
+        let src = "a or b;";
+        let expected = vec!["ExpressionStmt LogicalExpr VariableExpr a or VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_and_fn() {
+        let src = "a() and b();";
+        let expected = vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a and CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_or_fn() {
+        let src = "a() or b();";
+        let expected = vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a or CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_and() {
+        let src = "!true and true;";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! LiteralExpr true and LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_or() {
+        let src = "true or !true;";
+        let expected = vec!["ExpressionStmt LogicalExpr LiteralExpr true or UnaryExpr ! LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_and_variable() {
+        let src = "!a and b;";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! VariableExpr a and VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_or_variable() {
+        let src = "a or !b;";
+        let expected = vec!["ExpressionStmt LogicalExpr VariableExpr a or UnaryExpr ! VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_and_fn() {
+        let src = "!a() and b();";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! CallExpr VariableExpr a and CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_unary_or_fn() {
+        let src = "a() or !b();";
+        let expected = vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a or UnaryExpr ! CallExpr VariableExpr b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping() {
+        let src = "(true or false) and true;";
+        let expected = vec!["ExpressionStmt LogicalExpr GroupingExpr (LogicalExpr LiteralExpr true or LiteralExpr false) and LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping_variable() {
+        let src = "(a or b) and c;";
+        let expected = vec!["ExpressionStmt LogicalExpr GroupingExpr (LogicalExpr VariableExpr a or VariableExpr b) and VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping_fn() {
+        let src = "(a() or b()) and c();";
+        let expected = vec!["ExpressionStmt LogicalExpr GroupingExpr (LogicalExpr CallExpr VariableExpr a or CallExpr VariableExpr b) and CallExpr VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping_unary() {
+        let src = "!(true or false) and true;";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! GroupingExpr (LogicalExpr LiteralExpr true or LiteralExpr false) and LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping_unary_variable() {
+        let src = "!(a or b) and c;";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! GroupingExpr (LogicalExpr VariableExpr a or VariableExpr b) and VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_grouping_unary_fn() {
+        let src = "!(a() or b()) and c();";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! GroupingExpr (LogicalExpr CallExpr VariableExpr a or CallExpr VariableExpr b) and CallExpr VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_and_chaining() {
+        let src = "a and b and c;";
+        let expected = vec!["ExpressionStmt LogicalExpr LogicalExpr VariableExpr a and VariableExpr b and VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_or_chaining() {
+        let src = "a or b or c;";
+        let expected = vec!["ExpressionStmt LogicalExpr LogicalExpr VariableExpr a or VariableExpr b or VariableExpr c"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_mix_chaining() {
+        let src = "a and b or c and d;";
+        let expected = vec!["ExpressionStmt LogicalExpr LogicalExpr VariableExpr a and VariableExpr b or LogicalExpr VariableExpr c and VariableExpr d"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn logical_complex() {
+        let src = "!a() or b and (!c or d());";
+        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! CallExpr VariableExpr a or LogicalExpr VariableExpr b and GroupingExpr (LogicalExpr UnaryExpr ! VariableExpr c or CallExpr VariableExpr d)"];
         perform(src, expected)
     }
 }
