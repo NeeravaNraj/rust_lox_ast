@@ -331,6 +331,7 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("fn"), TokenType::DefFn);
         hmap.insert(String::from("class"), TokenType::Class);
         hmap.insert(String::from("lm"), TokenType::DefLambda);
+        hmap.insert(String::from("elif"), TokenType::Elif);
     }
 
     fn get_literal_type(&self, token: &TokenType) -> Literal {

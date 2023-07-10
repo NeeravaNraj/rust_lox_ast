@@ -45,6 +45,7 @@ pub enum TokenType {
     DefLambda,
     For,
     If,
+    Elif,
     Or,
     Print,
     Return,

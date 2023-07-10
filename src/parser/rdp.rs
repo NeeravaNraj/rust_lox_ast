@@ -163,13 +163,17 @@ impl<'a> Parser<'a> {
         )?;
 
         let then_branch = Box::new(self.statement()?);
-        let mut else_branch: Option<Box<Stmt>> = None;
+        let mut alternative: Option<Box<Stmt>> = None;
 
-        if self.match_single_token(TokenType::Else) {
-            else_branch = Some(Box::new(self.statement()?));
+        if self.match_single_token(TokenType::Elif) {
+            alternative = Some(Box::new(self.if_statement()?));
         }
 
-        Ok(Stmt::If(IfStmt::new(condition, then_branch, else_branch)))
+        if self.match_single_token(TokenType::Else) {
+            alternative = Some(Box::new(self.statement()?));
+        }
+
+        Ok(Stmt::If(IfStmt::new(condition, then_branch, alternative)))
     }
 
     fn while_statement(&mut self) -> Result<Stmt, LoxResult> {
@@ -407,10 +411,7 @@ impl<'a> Parser<'a> {
         if self.curr == 0 {
             return Err(self.error_handler.error(
                 self.peek(),
-                LoxErrorsTypes::Syntax(format!(
-                    "leading '{}' is not supported",
-                    self.peek().lexeme
-                )),
+                LoxErrorsTypes::Syntax(format!("Unexpected token",)),
             ));
         }
 
@@ -422,6 +423,12 @@ impl<'a> Parser<'a> {
 
     fn finish_call(&mut self, callee: Expr) -> Result<Expr, LoxResult> {
         let mut args: Vec<Expr> = Vec::new();
+        if self.check(TokenType::Semicolon) {
+            return Err(self.error_handler.error(
+                self.peek(), 
+                LoxErrorsTypes::Syntax("Expected ')' after".to_string())
+            ))
+        }
         if !self.check(TokenType::RightParen) {
             if args.len() >= 255 {
                 self.error_handler.error(
@@ -594,7 +601,20 @@ impl<'a> Parser<'a> {
             TokenType::MinusEqual,
         ]) {
             let token = self.previous();
-            let value = self.compound_assignment()?;
+            let value = self.primary()?;
+
+            match self.peek().token_type {
+                TokenType::SlashEqual
+                | TokenType::StarEqual
+                | TokenType::MinusEqual
+                | TokenType::PlusEqual => {
+                    return Err(self.error_handler.error(
+                        self.peek(),
+                        LoxErrorsTypes::Syntax("Cannot chain compound assignment".to_string()),
+                    ))
+                }
+                _ => {}
+            }
 
             match expr {
                 Expr::Variable(var) => {
@@ -606,7 +626,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     return Err(self.error_handler.error(
                         &token,
-                        LoxErrorsTypes::Parse("Invalid assignment target".to_string()),
+                        LoxErrorsTypes::Syntax("Invalid assignment target for".to_string()),
                     ));
                 }
             }
@@ -815,7 +835,10 @@ mod tests {
             _: u16,
         ) -> Result<String, LoxResult> {
             let val = self.evaluate(&expr.value)?;
-            let str = format!("CompoundAssignExpr {} {} {val}", expr.name.lexeme, expr.operator.lexeme);
+            let str = format!(
+                "CompoundAssignExpr {} {} {val}",
+                expr.name.lexeme, expr.operator.lexeme
+            );
             Ok(str)
         }
     }
@@ -1011,13 +1034,6 @@ mod tests {
     }
 
     #[test]
-    fn binary_add_err() {
-        let src = "1 + ;";
-        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
-        perform_err(src, expected)
-    }
-
-    #[test]
     fn grouping_err() {
         let src = "(1 + 2 + 3";
         let expected = LoxErrorsTypes::Syntax("Expected ')' after expression, at".to_string());
@@ -1045,14 +1061,12 @@ mod tests {
         perform(src, expected)
     }
 
-
     #[test]
     fn binary_variable_mul() {
         let src = "a * b;";
         let expected = vec!["ExpressionStmt BinaryExpr VariableExpr a * VariableExpr b"];
         perform(src, expected)
     }
-
 
     #[test]
     fn binary_variable_div() {
@@ -1085,42 +1099,48 @@ mod tests {
     #[test]
     fn binary_logical_equality() {
         let src = "1 == 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_inequality() {
         let src = "1 != 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } != LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } != LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_greater() {
         let src = "1 > 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } > LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } > LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_greater_equal() {
         let src = "1 >= 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } >= LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } >= LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_less() {
         let src = "1 < 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } < LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } < LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_less_equal() {
         let src = "1 <= 2;";
-        let expected = vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } <= LiteralExpr Number { 2 }"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr LiteralExpr Number { 1 } <= LiteralExpr Number { 2 }"];
         perform(src, expected)
     }
 
@@ -1169,84 +1189,96 @@ mod tests {
     #[test]
     fn binary_logical_fn_equality() {
         let src = "a() == b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a == CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a == CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_fn_inequality() {
         let src = "a() != b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a != CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a != CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_fn_greater() {
         let src = "a() > b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a > CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a > CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_fn_greater_equal() {
         let src = "a() >= b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a >= CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a >= CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_fn_less() {
         let src = "a() < b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a < CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a < CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_fn_less_equal() {
         let src = "a() <= b();";
-        let expected = vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a <= CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr CallExpr VariableExpr a <= CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_equality() {
         let src = "(a == b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_inequality() {
         let src = "(a != b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a != VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a != VariableExpr b)"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_greater() {
         let src = "(a > b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a > VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a > VariableExpr b)"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_greater_equal() {
         let src = "(a >= b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a >= VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a >= VariableExpr b)"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_less() {
         let src = "(a < b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a < VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a < VariableExpr b)"];
         perform(src, expected)
     }
 
     #[test]
     fn binary_logical_variable_grouping_less_equal() {
         let src = "(a <= b);";
-        let expected = vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a <= VariableExpr b)"];
+        let expected =
+            vec!["ExpressionStmt GroupingExpr (BinaryExpr VariableExpr a <= VariableExpr b)"];
         perform(src, expected)
     }
 
@@ -1281,14 +1313,17 @@ mod tests {
     #[test]
     fn unary_negate_variable_arithmetic() {
         let src = "-a * b;";
-        let expected = vec!["ExpressionStmt BinaryExpr UnaryExpr - VariableExpr a * VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt BinaryExpr UnaryExpr - VariableExpr a * VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn unary_negate_variable_grouping() {
         let src = "-(a * b);";
-        let expected = vec!["ExpressionStmt UnaryExpr - GroupingExpr (BinaryExpr VariableExpr a * VariableExpr b)"];
+        let expected = vec![
+            "ExpressionStmt UnaryExpr - GroupingExpr (BinaryExpr VariableExpr a * VariableExpr b)",
+        ];
         perform(src, expected)
     }
 
@@ -1321,6 +1356,13 @@ mod tests {
     }
 
     #[test]
+    fn unary_not_chaining() {
+        let src = "!!!!true;";
+        let expected = vec!["ExpressionStmt UnaryExpr ! UnaryExpr ! UnaryExpr ! UnaryExpr ! LiteralExpr true"];
+        perform(src, expected)
+    }
+
+    #[test]
     fn unary_not_variable() {
         let src = "!a;";
         let expected = vec!["ExpressionStmt UnaryExpr ! VariableExpr a"];
@@ -1344,7 +1386,9 @@ mod tests {
     #[test]
     fn unary_not_binary_grouping_variale() {
         let src = "!(a == b);";
-        let expected = vec!["ExpressionStmt UnaryExpr ! GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)"];
+        let expected = vec![
+            "ExpressionStmt UnaryExpr ! GroupingExpr (BinaryExpr VariableExpr a == VariableExpr b)",
+        ];
         perform(src, expected)
     }
 
@@ -1386,42 +1430,48 @@ mod tests {
     #[test]
     fn logical_and_fn() {
         let src = "a() and b();";
-        let expected = vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a and CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a and CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn logical_or_fn() {
         let src = "a() or b();";
-        let expected = vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a or CallExpr VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr CallExpr VariableExpr a or CallExpr VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn logical_unary_and() {
         let src = "!true and true;";
-        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! LiteralExpr true and LiteralExpr true"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr UnaryExpr ! LiteralExpr true and LiteralExpr true"];
         perform(src, expected)
     }
 
     #[test]
     fn logical_unary_or() {
         let src = "true or !true;";
-        let expected = vec!["ExpressionStmt LogicalExpr LiteralExpr true or UnaryExpr ! LiteralExpr true"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr LiteralExpr true or UnaryExpr ! LiteralExpr true"];
         perform(src, expected)
     }
 
     #[test]
     fn logical_unary_and_variable() {
         let src = "!a and b;";
-        let expected = vec!["ExpressionStmt LogicalExpr UnaryExpr ! VariableExpr a and VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr UnaryExpr ! VariableExpr a and VariableExpr b"];
         perform(src, expected)
     }
 
     #[test]
     fn logical_unary_or_variable() {
         let src = "a or !b;";
-        let expected = vec!["ExpressionStmt LogicalExpr VariableExpr a or UnaryExpr ! VariableExpr b"];
+        let expected =
+            vec!["ExpressionStmt LogicalExpr VariableExpr a or UnaryExpr ! VariableExpr b"];
         perform(src, expected)
     }
 
@@ -1584,7 +1634,9 @@ mod tests {
     #[test]
     fn ternary() {
         let src = "true ? true : false;";
-        let expected = vec!["ExpressionStmt TernaryExpr LiteralExpr true ? LiteralExpr true : LiteralExpr false"];
+        let expected = vec![
+            "ExpressionStmt TernaryExpr LiteralExpr true ? LiteralExpr true : LiteralExpr false",
+        ];
         perform(src, expected)
     }
 
@@ -1642,5 +1694,468 @@ mod tests {
         let src = "let v = a() == b ? !(x and y) : z == y;";
         let expected = vec!["LetStmt v = TernaryExpr BinaryExpr CallExpr VariableExpr a == VariableExpr b ? UnaryExpr ! GroupingExpr (LogicalExpr VariableExpr x and VariableExpr y) : BinaryExpr VariableExpr z == VariableExpr y"];
         perform(src, expected)
+    }
+
+    #[test]
+    fn compound_assign_invalid_target() {
+        let src = "a + b += 1;";
+        let expected = LoxErrorsTypes::Syntax("Invalid assignment target for".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn compound_assign_invalid() {
+        let src = "+= 1;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn compound_assign_invalid_chaining() {
+        let src = "a += b += 1;";
+        let expected = LoxErrorsTypes::Syntax("Cannot chain compound assignment".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn compound_assign_invalid_expression() {
+        let src = "a +=  += 1;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn compound_assign_semicolon() {
+        let src = "a += 1";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn assignment_literal() {
+        let src = "a = true;";
+        let expected = vec!["ExpressionStmt AssignExpr a = LiteralExpr true"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_expression() {
+        let src = "a = 1 + 2;";
+        let expected = vec!["ExpressionStmt AssignExpr a = BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_equality() {
+        let src = "a = 1 == 2;";
+        let expected = vec!["ExpressionStmt AssignExpr a = BinaryExpr LiteralExpr Number { 1 } == LiteralExpr Number { 2 }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_logical() {
+        let src = "a = true and false;";
+        let expected = vec!["ExpressionStmt AssignExpr a = LogicalExpr LiteralExpr true and LiteralExpr false"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_function_call() {
+        let src = "a = b();";
+        let expected = vec!["ExpressionStmt AssignExpr a = CallExpr VariableExpr b"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_ternary() {
+        let src = "a = b and c ? true : false;";
+        let expected = vec!["ExpressionStmt AssignExpr a = TernaryExpr LogicalExpr VariableExpr b and VariableExpr c ? LiteralExpr true : LiteralExpr false"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_lambda() {
+        let src = "a = lm() {};";
+        let expected = vec!["ExpressionStmt AssignExpr a = LambdaExpr lm() {  }"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_chain() {
+        let src = "a = b = c;";
+        let expected = vec!["ExpressionStmt AssignExpr a = AssignExpr b = VariableExpr c"];
+        perform(src, expected);
+    }
+
+    #[test]
+    fn assignment_no_expression() {
+        let src = "a =;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn assignment_double_assignment() {
+        let src = "a = = 2;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn assignment_semicolon() {
+        let src = "a = 1";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn ternary_no_middle() {
+        let src = "true ? ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn ternary_incomplete() {
+        let src = "true ? true  ;";
+        let expected = LoxErrorsTypes::Syntax("Incomplete ternary operation,".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn ternary_no_right() {
+        let src = "true ? true : ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn ternary_no_semicolon() {
+        let src = "true ? true : false";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_or_no_rhs() {
+        let src = "true or;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_or_no_operands() {
+        let src = "or;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_or_invalid_chain() {
+        let src = "true or or false;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn logical_or_semicolon() {
+        let src = "true or false";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_and_no_rhs() {
+        let src = "true and;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_and_no_operands() {
+        let src = "and;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_and_invalid_chain() {
+        let src = "true and and false;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn logical_and_semicolon() {
+        let src = "true and false";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn equality_no_rhs() {
+        let src = "1 == ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn equality_no_operands() {
+        let src = " == ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn inequality_no_rhs() {
+        let src = "1 != ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn inequality_no_operands() {
+        let src = " != ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn equality_no_semicolon() {
+        let src = "1 == 1";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn inequality_no_semicolon() {
+        let src = "1 != 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_less_no_rhs() {
+        let src = "1 < ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_lessequal_no_rhs() {
+        let src = "1 <= ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_greater_no_rhs() {
+        let src = "1 > ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn comparison_greaterequal_no_rhs() {
+        let src = "1 >= ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_less_no_operands() {
+        let src = " < ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_lessequal_no_operands() {
+        let src = " <= ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_greater_no_operands() {
+        let src = " > ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn comparison_greaterequal_no_operands() {
+        let src = " >= ;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_less_no_semicolon() {
+        let src = "1 < 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_lessequal_no_semicolon() {
+        let src = "1 <= 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn comparison_greater_no_semicolon() {
+        let src = "1 > 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+    
+    #[test]
+    fn comparison_greaterequal_no_semicolon() {
+        let src = "1 >= 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn binary_no_operands_add() {
+        let src = "+;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn binary_no_operands_mul() {
+        let src = "*;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn binary_no_operands_div() {
+        let src = "/;";
+        let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
+        perform_err(src, expected);
+    }
+
+    #[test]
+    fn binary_no_rhs_add() {
+        let src = "1 + ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_rhs_sub() {
+        let src = "1 - ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_rhs_mul() {
+        let src = "1 * ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_rhs_div() {
+        let src = "1 / ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_semicolon_add() {
+        let src = "1 + 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_semicolon_sub() {
+        let src = "1 - 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_semicolon_mul() {
+        let src = "1 * 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn binary_no_semicolon_div() {
+        let src = "1 / 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+
+    #[test]
+    fn unary_negate_no_rhs() {
+        let src = "-;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn unary_not_no_rhs() {
+        let src = "!;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn unary_negate_no_semicolon() {
+        let src = "-1";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn unary_not_no_semicolon() {
+        let src = "!true";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn function_call_unclosed() {
+        let src = "a(b;";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
+        perform_err(src, expected)
+    }
+    
+    #[test]
+    fn function_call_no_expr() {
+        let src = "a(;";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn function_call_no_semicolon() {
+        let src = "a()";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn print_no_expr(){
+        let src = "print ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn print_no_semicolon(){
+        let src = "print a";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
     }
 }

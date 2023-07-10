@@ -10,6 +10,9 @@
 // Variable binding
 let a = 1;
 
+// Currently supported data-types
+// String, Number(integers and floats), Boolean and none
+
 // Printing to stdout
 print a; // prints '1' to command line
 
@@ -45,6 +48,8 @@ if (a == 1) print a;
 
 if (a != 1) {
     print 2;
+} elif (a > 2){
+    print "Greater";
 } else {
     print a;
 }
@@ -71,5 +76,22 @@ fn greet(name) {
 
 greet(" user!"); // prints 'Hello world!'
 
-// Currently supported data-types
-// String, Number(integers and floats), Boolean and none
+
+// Returning values
+
+fn add(a, b) {
+    return a + b;
+}
+
+let three = add(1, 2);
+
+// Lambda functions
+// Lambdas are the same as functions but have no name
+// Syntax: lm(params...) {}
+
+let lambda = lm() {
+    print "Hello world!";
+}
+
+// Call lambda function
+lambda(); // prints 'Hello world!' to stdout

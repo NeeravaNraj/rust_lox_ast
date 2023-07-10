@@ -1,18 +1,9 @@
-fn c() {
-    let i = 0;
+let a = 1;
 
-    return fn () {
-        i += 1;
-        print i;
-    };
+if (a == 1) {
+    print a;
+} elif (a == 2) {
+    print 2;
+} else {
+    print a;
 }
-
-fn foo() {
-
-}
-
-let a = c();
-
-a();
-a();
-a();
