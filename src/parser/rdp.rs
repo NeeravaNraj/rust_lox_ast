@@ -710,7 +710,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
+    use std::{ops::Add, fmt::format};
 
     use super::*;
     use crate::Scanner;
@@ -749,8 +749,14 @@ mod tests {
         fn visit_call_expr(&self, expr: &CallExpr, _: u16) -> Result<String, LoxResult> {
             let callee = self.evaluate(&expr.callee)?;
             let mut str = format!("CallExpr {callee}");
-            for arg in &expr.args {
+            if expr.args.len() > 0 {
+                str.push(' ');
+            }
+            for (i, arg) in expr.args.iter().enumerate() {
                 str = str.add(&self.evaluate(&arg)?);
+                if expr.args.len() > 1 && expr.args.len() - 1 != i {
+                    str.push(' ');
+                }
             }
 
             Ok(str)
@@ -779,7 +785,7 @@ mod tests {
             let mut params = "".to_string();
             for (i, param) in expr.params.iter().enumerate() {
                 params.push_str(&param.lexeme);
-                if expr.params.len() - 1 != i {
+                if expr.params.len() > 1 && expr.params.len() - 1 != i {
                     params.push_str(", ");
                 }
             }
@@ -804,7 +810,7 @@ mod tests {
         }
 
         fn visit_literal_expr(&self, expr: &LiteralExpr, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("LiteralExpr {}", expr.value);
+            let str = format!("LiteralExpr {}", expr.value);
             Ok(str)
         }
 
@@ -903,9 +909,12 @@ mod tests {
             let mut str = format!("BlockStmt");
 
             str.push_str(" { ");
-            for stmt in &stmt.statements {
-                let line = self.execute(&stmt)?;
+            for (i, val) in stmt.statements.iter().enumerate() {
+                let line = self.execute(&val)?;
                 str.push_str(&line);
+                if stmt.statements.len() > 1 && stmt.statements.len() - 1 != i {
+                    str.push(' ');
+                }
             }
             str.push_str(" }");
             Ok(str)
@@ -918,9 +927,8 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_break_stmt(&self, stmt: &BreakStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("BreakStmt");
-
+        fn visit_break_stmt(&self, _: &BreakStmt, _: u16) -> Result<String, LoxResult> {
+            let str = format!("BreakStmt");
             Ok(str)
         }
 
@@ -931,14 +939,30 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_continue_stmt(&self, stmt: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("ContinueStmt");
-
+        fn visit_continue_stmt(&self, _: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
+            let str = format!("ContinueStmt");
             Ok(str)
         }
 
         fn visit_function_stmt(&self, stmt: &FunctionStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("FunctionStmt ");
+            let mut params = "".to_string();
+            for (i, param) in stmt.params.iter().enumerate() {
+                params.push_str(&param.lexeme);
+                if stmt.params.len() - 1 != i {
+                    params.push_str(", ");
+                }
+            }
+            let mut body = "{ ".to_string();
+
+            for (i, val) in stmt.body.iter().enumerate() {
+                body.push_str(&self.execute(&val)?);
+                if stmt.body.len() > 1 && stmt.body.len() - 1 != i {
+                    body.push(' ');
+                }
+            }
+
+            body.push_str(" }");
+            let str = format!("FunctionStmt {}({}) {}", stmt.name.lexeme, params.trim(), body);
 
             Ok(str)
         }
@@ -2438,6 +2462,20 @@ mod tests {
     }
 
     #[test]
+    fn for_statement_continue() {
+        let src = "for(;;) { continue; }";
+        let expected = vec!["ForStmt (;;) BlockStmt { ContinueStmt }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_break() {
+        let src = "for(;;) { break; }";
+        let expected = vec!["ForStmt (;;) BlockStmt { BreakStmt }"];
+        perform(src, expected)
+    }
+
+    #[test]
     fn for_statement_no_condition_block() {
         let src = "for";
         let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
@@ -2478,6 +2516,25 @@ mod tests {
         let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt {  }"];
         perform(src, expected)
     }
+
+    #[test]
+    fn while_statement_continue() {
+        let src = "while (i < 10) {
+            continue;
+        }";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt { ContinueStmt }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn while_statement_break() {
+        let src = "while (i < 10) {
+            break;
+        }";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt { BreakStmt }"];
+        perform(src, expected)
+    }
+
 
     #[test]
     fn while_statement_simple_statement() {
@@ -2524,6 +2581,191 @@ mod tests {
     #[test]
     fn while_statement_unclosed_block() {
         let src = "while (x < 10) {";
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement() {
+        let src = "fn test() {}";
+        let expected = vec!["FunctionStmt test() {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_params() {
+        let src = "fn test(a, b, c) {}";
+        let expected = vec!["FunctionStmt test(a, b, c) {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_body() {
+        let src = "fn test() {
+            let a = 1;
+        }";
+        let expected = vec!["FunctionStmt test() { LetStmt a = LiteralExpr Number { 1 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_nested_block() {
+        let src = "fn test() {
+            {
+
+            }
+        }";
+        let expected = vec!["FunctionStmt test() { BlockStmt {  } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_statement() {
+        let src = "fn test(a, b) {
+            return a + b;
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt BinaryExpr VariableExpr a + VariableExpr b }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_variable() {
+        let src = "fn test(a, b) {
+            let result = a + b;
+            return result;
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { LetStmt result = BinaryExpr VariableExpr a + VariableExpr b ReturnStmt VariableExpr result }"];
+        perform(src, expected)
+    }
+
+
+    #[test]
+    fn fn_statement_print() {
+        let src = "fn test(a, b) {
+            print a + b;
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { PrintStmt BinaryExpr VariableExpr a + VariableExpr b }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_nested_fn() {
+        let src = "fn test(a, b) {
+            fn nested() {
+                return a;
+            }
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { FunctionStmt nested() { ReturnStmt VariableExpr a } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_lambda() {
+        let src = "fn test(a, b) {
+            return lm() {
+                print a + b;
+            };
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt LambdaExpr lm() { PrintStmt BinaryExpr VariableExpr a + VariableExpr b } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_recurse() {
+        let src = "fn test(a, b) {
+            test(1, 2);
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { ExpressionStmt CallExpr VariableExpr test LiteralExpr Number { 1 } LiteralExpr Number { 2 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_call() {
+        let src = "fn test(a, b) {
+            return test(1, 2);
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt CallExpr VariableExpr test LiteralExpr Number { 1 } LiteralExpr Number { 2 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_from_if() {
+        let src = "fn test(a, b) {
+            if (a > b) return a;
+            elif (a < b) return b;
+            else return -1;
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { IfStmt (BinaryExpr VariableExpr a > VariableExpr b) ReturnStmt VariableExpr a else IfStmt (BinaryExpr VariableExpr a < VariableExpr b) ReturnStmt VariableExpr b else ReturnStmt UnaryExpr - LiteralExpr Number { 1 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_from_while() {
+        let src = "fn test(a, b) {
+            while (a < 10) {
+                return a;
+            }
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { WhileStmt (BinaryExpr VariableExpr a < LiteralExpr Number { 10 }) BlockStmt { ReturnStmt VariableExpr a } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_return_from_for() {
+        let src = "fn test(a, b) {
+            for (let i = 0; i < 10; i += 1) {
+                return a;
+            }
+        }";
+        let expected = vec!["FunctionStmt test(a, b) { ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) BlockStmt { ReturnStmt VariableExpr a } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_no_name() {
+        let src = "fn";
+        let expected = LoxErrorsTypes::Syntax("Expected function name after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_no_param_block() {
+        let src = "fn test";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_unclosed_params_block() {
+        let src = "fn test(";
+        let expected = LoxErrorsTypes::Syntax("Expected parameter identifier".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_unclosed_params_block_2() {
+        let src = "fn test(a";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after parameters".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_trailing_comma() {
+        let src = "fn test(a,) {}";
+        let expected = LoxErrorsTypes::Syntax("Expected parameter identifier".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_no_body() {
+        let src = "fn test(a)";
+        let expected = LoxErrorsTypes::Syntax("Expected '{' before function body".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn fn_statement_unclosed_body() {
+        let src = "fn test(a) {";
         let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
         perform_err(src, expected)
     }
