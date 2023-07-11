@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
 
         self.consume(
             TokenType::RightBrace,
-            LoxErrorsTypes::Parse("Expected '}' after block".to_string()),
+            LoxErrorsTypes::Syntax("Expected '}' after block".to_string()),
         )?;
         Ok(stmts)
     }
@@ -845,8 +845,16 @@ mod tests {
 
     impl<'a> VisitorStmt<String> for AstTraverser<'a> {
         fn visit_if_stmt(&self, stmt: &IfStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("IfStmt ");
-
+            let cond = self.evaluate(&stmt.condition)?;
+            let body = self.execute(&stmt.then_branch)?;
+            let mut str = format!("IfStmt ({}) ", cond);
+                
+            str.push_str(&body);
+            if stmt.else_branch.is_some() {
+                let else_branch = self.execute(stmt.else_branch.as_ref().unwrap())?;
+                str.push_str(" else ");
+                str.push_str(&else_branch);
+            }
             Ok(str)
         }
 
@@ -875,6 +883,12 @@ mod tests {
         fn visit_block_stmt(&self, stmt: &BlockStmt, _: u16) -> Result<String, LoxResult> {
             let mut str = format!("BlockStmt");
 
+            str.push_str(" { ");
+            for stmt in &stmt.statements {
+                let line = self.execute(&stmt)?;
+                str.push_str(&line);
+            }
+            str.push_str(" }");
             Ok(str)
         }
 
@@ -2153,9 +2167,195 @@ mod tests {
     }
 
     #[test]
-    fn print_no_semicolon(){
+    fn print_no_semicolon() {
         let src = "print a";
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn if_statements() {
+        let src = "if (x > 1) {
+            y = 5;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_else_statements() {
+        let src = "if (x > 1) {
+            y = 5;
+        } else {
+            y = x;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } } else BlockStmt { ExpressionStmt AssignExpr y = VariableExpr x }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_elif_statements() {
+        let src = "if (x > 1) {
+            y = 5;
+        } elif (x < 1) {
+            y = x;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } } else IfStmt (BinaryExpr VariableExpr x < LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = VariableExpr x }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_elif_else_statements() {
+        let src = "if (x > 1) {
+            y = 5;
+        } elif (x < 1) {
+            y = x;
+        } else {
+            y = 0;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } } else IfStmt (BinaryExpr VariableExpr x < LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = VariableExpr x } else BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 0 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_nesting() {
+        let src = "if (x > 1) {
+            if (x < 1) {
+                y = 5;
+            }
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { IfStmt (BinaryExpr VariableExpr x < LiteralExpr Number { 1 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_multiple_conditions() {
+        let src = "if (x > 1 and x < -5) {
+            y = 5;
+        }";
+        let expected = vec!["IfStmt (LogicalExpr BinaryExpr VariableExpr x > LiteralExpr Number { 1 } and BinaryExpr VariableExpr x < UnaryExpr - LiteralExpr Number { 5 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr Number { 5 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_binary_operation_in_condition() {
+        let src = "if (x + 1 == 2) {
+            y = true;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr VariableExpr x + LiteralExpr Number { 1 } == LiteralExpr Number { 2 }) BlockStmt { ExpressionStmt AssignExpr y = LiteralExpr true }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_complex_condition() {
+        let src = "if ((x - 2) * y < 100) {
+            y += 1;
+        }";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) BlockStmt { ExpressionStmt CompoundAssignExpr y += LiteralExpr Number { 1 } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_inline_stmt() {
+        let src = "if ((x - 2) * y < 100) print y + 1;";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_else_statements_inline_stmt() {
+        let src = "
+            if ((x - 2) * y < 100) print y + 1;
+            else print y;
+        ";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else PrintStmt VariableExpr y"];
+        perform(src, expected)
+    }
+    #[test]
+    fn if_elif_else_statements_inline_stmt() {
+        let src = "
+            if ((x - 2) * y < 100) print y + 1;
+            elif (x == 100) print y - 1;
+            else print y;
+        ";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else IfStmt (BinaryExpr VariableExpr x == LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y - LiteralExpr Number { 1 } else PrintStmt VariableExpr y"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn if_statements_no_condition() {
+        let src = "
+            if () print y + 1;
+        ";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn if_statements_no_then() {
+        let src = "if (x == 2)";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn if_statements_condition_block_not_started() {
+        let src = "if";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn if_statements_condition_block_not_closed() {
+        let src = "if (x == 2";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn elif_statements_condition_block_not_started() {
+        let src = "
+            if (x == 2) {}
+            elif
+        ";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn elif_statements_condition_block_not_closed() {
+        let src = "
+            if (x == 2){}
+            elif (x == 3
+        ";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn else_statements_no_then() {
+        let src = "
+            if (x == 2) {}
+            else
+        ";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn elif_statements_no_then() {
+        let src = "
+            if (x == 2) {}
+            elif (x == 2)
+        ";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn if_statements_unclosed_block() {
+        let src = "if (x == 2) {";
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
         perform_err(src, expected)
     }
 }
