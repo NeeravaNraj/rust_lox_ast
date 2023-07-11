@@ -868,7 +868,26 @@ mod tests {
         }
 
         fn visit_for_stmt(&self, stmt: &ForStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("ForStmt");
+            let var_decl = if let Some(s) = &stmt.var {
+                self.execute(s)?
+            } else {
+                "".to_string()
+            };
+
+            let condition = if let Some(c) = &stmt.condition {
+                self.evaluate(c)?
+            } else {
+                "".to_string()
+            };
+
+            let update = if let Some(u) = &stmt.update_expr {
+                self.evaluate(u)?
+            } else {
+                "".to_string()
+            };
+
+            let body = self.execute(&stmt.body)?;
+            let str = format!("ForStmt ({};{};{}) {}", var_decl, condition, update, body);
 
             Ok(str)
         }
@@ -2183,6 +2202,15 @@ mod tests {
     }
 
     #[test]
+    fn if_statements_nested_block() {
+        let src = "if (x > 1) {
+            {}
+        }";
+        let expected = vec!["IfStmt (BinaryExpr VariableExpr x > LiteralExpr Number { 1 }) BlockStmt { BlockStmt {  } }"];
+        perform(src, expected)
+    }
+
+    #[test]
     fn if_else_statements() {
         let src = "if (x > 1) {
             y = 5;
@@ -2355,6 +2383,76 @@ mod tests {
     #[test]
     fn if_statements_unclosed_block() {
         let src = "if (x == 2) {";
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn for_statement() {
+        let src = "for(let i = 0; i < 10; i += 1) {}";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_simple_statement() {
+        let src = "for(let i = 0; i < 10; i += 1) print i;";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) PrintStmt VariableExpr i"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_nested_block() {
+        let src = "for(let i = 0; i < 10; i += 1) { {} }";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) BlockStmt { BlockStmt {  } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_var() {
+        let src = "for(; i < 10; i += 1) {}";
+        let expected = vec!["ForStmt (;BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_condition() {
+        let src = "for(let i = 0;; i += 1) {}";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };;CompoundAssignExpr i += LiteralExpr Number { 1 }) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_update() {
+        let src = "for(let i = 0; i < 10;) {}";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_var_condition_update() {
+        let src = "for(;;) {}";
+        let expected = vec!["ForStmt (;;) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_condition_block() {
+        let src = "for";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn for_statement_no_block() {
+        let src = "for (;;)";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn for_statement_unclosed_block() {
+        let src = "for (;;) {";
         let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
         perform_err(src, expected)
     }
