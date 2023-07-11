@@ -912,8 +912,9 @@ mod tests {
         }
 
         fn visit_while_stmt(&self, stmt: &WhileStmt, _: u16) -> Result<String, LoxResult> {
-            let mut str = format!("WhileStmt");
-
+            let condition = self.evaluate(&stmt.condition)?;
+            let body = self.execute(&stmt.body)?;
+            let str = format!("WhileStmt ({}) {}", condition, body);
             Ok(str)
         }
 
@@ -2444,6 +2445,20 @@ mod tests {
     }
 
     #[test]
+    fn for_statement_unclosed_condition() {
+        let src = "for (;;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn for_statement_unclosed_condition_second() {
+        let src = "for (;; i += 1";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after for clauses".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
     fn for_statement_no_block() {
         let src = "for (;;)";
         let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
@@ -2453,6 +2468,62 @@ mod tests {
     #[test]
     fn for_statement_unclosed_block() {
         let src = "for (;;) {";
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn while_statement() {
+        let src = "while (i < 10) {}";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn while_statement_simple_statement() {
+        let src = "while (i < 10) print i;";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) PrintStmt VariableExpr i"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn while_statement_nested_block() {
+        let src = "while (i < 10) { {} }";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt { BlockStmt {  } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn while_statement_complex_condition() {
+        let src = "while ((x - 1) * y > 12) {}";
+        let expected = vec!["WhileStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 1 }) * VariableExpr y > LiteralExpr Number { 12 }) BlockStmt {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn while_statement_no_condition_block() {
+        let src = "while ";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn while_statement_no_block() {
+        let src = "while (x < 10)";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn while_statement_unclosed_condition() {
+        let src = "while (x < 10";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn while_statement_unclosed_block() {
+        let src = "while (x < 10) {";
         let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
         perform_err(src, expected)
     }
