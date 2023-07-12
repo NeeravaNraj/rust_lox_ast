@@ -470,6 +470,37 @@ impl VisitorExpr<Literal> for Interpreter {
 
         Ok(Literal::Array(arr))
     }
+
+    fn visit_index_expr(&self, expr: &IndexExpr, _: u16) -> Result<Literal, LoxResult> {
+        let literal = self.evaluate(&expr.identifier)?;
+        let index = self.evaluate(&expr.index)?;
+        if let Literal::Array(arr) = literal {
+            if index.get_typename() != "Number" {
+                return Err(self.error_handler.error(
+                    &expr.bracket, 
+                    LoxErrorsTypes::Runtime("Can only index arrays with numbers".to_string())
+                ))
+            }
+
+            let num = index.unwrap_number() as isize;
+            let len = arr.len() as isize;
+            if num > len {
+                return Err(self.error_handler.error(
+                    &expr.bracket, 
+                    LoxErrorsTypes::Runtime("Index out of bounds".to_string())
+                ))
+            }
+            if num < 0 {
+                return Ok(arr.get((len - num) as usize).unwrap().dup())
+            }
+            Ok(arr.get(num as usize).unwrap().dup())
+        } else {
+            Err(self.error_handler.error(
+                &expr.bracket, 
+                LoxErrorsTypes::Runtime("Can only index arrays".to_string())
+            ))
+        }
+    }
 }
 
 impl VisitorStmt<()> for Interpreter {

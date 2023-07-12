@@ -1,20 +1,11 @@
-let a = [
-    [
-        1,
-        2,
-        3
-    ],
+let a = "global";
+{
+    fn showA() {
+        print a;
+    }
 
-    [
-        true,
-        false,
-        none
-    ],
-    [
-        "Str1",
-        "Str2",
-        "Str3"
-    ]
-];
+    showA();
 
-print a;
+    let a = "block";
+    showA();
+}

@@ -9,14 +9,14 @@ fn main() -> io::Result<()> {
         "Grouping ; expression: Expr".to_string(),
         "Literal ; value: Literal".to_string(),
         "Unary ; operator: Token, right: Expr".to_string(),
-        "Ternary ; left: Expr, operator: Token, middle: Expr, colon: Token, right: Expr"
-            .to_string(),
+        "Ternary ; left: Expr, operator: Token, middle: Expr, colon: Token, right: Expr".to_string(),
         "Variable ; name: Token".to_string(),
         "Assign ; name: Token, value: Expr".to_string(),
         "CompoundAssign ; name: Token, operator: Token, value: Expr".to_string(),
         "Call ; callee: Expr, paren: Token, args: Vec<Expr>".to_string(),
         "Lambda ; params: Rc<Vec<Token>>, body: Rc<Vec<Stmt>>".to_string(),
         "Array ; arr: Vec<Expr>".to_string(),
+        "Index ; identifier: Box<Expr>, bracket: Token, index: Box<Expr>".to_string(),
     ];
 
     let expr_mods = vec![

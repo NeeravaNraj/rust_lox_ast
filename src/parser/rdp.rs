@@ -485,8 +485,28 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    fn finish_index(&mut self, var: Expr) -> Result<Expr, LoxResult> {
+        let bracket = self.previous();
+        let index = self.expression()?;
+        self.consume(
+            TokenType::RightBracket, 
+            LoxErrorsTypes::Syntax("Expected ']' after".to_string())
+        )?;
+        Ok(Expr::Index(IndexExpr::new(Box::new(var), bracket, Box::new(index))))
+    }
+
     fn array_subscript(&mut self) -> Result<Expr, LoxResult> {
-        todo!()
+        let mut expr = self.call()?;
+
+        loop {
+            if self.match_single_token(TokenType::LeftBracket) {
+                expr = self.finish_index(expr)?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
     }
 
     fn unary(&mut self) -> Result<Expr, LoxResult> {
@@ -495,7 +515,7 @@ impl<'a> Parser<'a> {
             return Ok(Expr::Unary(UnaryExpr::new(operator, self.unary()?)));
         }
 
-        self.call()
+        self.array_subscript()
     }
 
     fn factor(&mut self) -> Result<Expr, LoxResult> {
@@ -885,6 +905,13 @@ mod tests {
                 }
             }
             str.push(']');
+            Ok(str)
+        }
+
+        fn visit_index_expr(&self, expr: &IndexExpr, _: u16) -> Result<String, LoxResult> {
+            let name = self.evaluate(&expr.identifier)?;
+            let index = self.evaluate(&expr.index)?;
+            let str = format!("IndexExpr {} {}", name, index);
             Ok(str)
         }
     }
@@ -2237,6 +2264,13 @@ mod tests {
     }
 
     #[test]
+    fn function_call_calling_call() {
+        let src = "a()();";
+        let expected = vec!["ExpressionStmt CallExpr CallExpr VariableExpr a"];
+        perform(src, expected);
+    }
+
+    #[test]
     fn function_call_no_semicolon() {
         let src = "a()";
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
@@ -2860,6 +2894,62 @@ mod tests {
     fn array_expr_no_semicolon() {
         let src = "[1, 2]";
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn index_expr() {
+        let src = "a[0];";
+        let expected = vec!["ExpressionStmt IndexExpr VariableExpr a LiteralExpr Number { 0 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn index_expr_double_index() {
+        let src = "a[0][0];";
+        let expected = vec!["ExpressionStmt IndexExpr IndexExpr VariableExpr a LiteralExpr Number { 0 } LiteralExpr Number { 0 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn index_expr_call() {
+        let src = "a()[0];";
+        let expected = vec!["ExpressionStmt IndexExpr CallExpr VariableExpr a LiteralExpr Number { 0 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn index_expr_arithmetic() {
+        let src = "a[1 + 2];";
+        let expected = vec!["ExpressionStmt IndexExpr VariableExpr a BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn index_expr_arithmetic_call() {
+        let src = "a[b() - 1];";
+        let expected = vec!["ExpressionStmt IndexExpr VariableExpr a BinaryExpr CallExpr VariableExpr b - LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn index_expr_no_expr() {
+        let src = "a[;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn index_expr_no_expr_unclosed() {
+        let src = "a[;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn index_expr_unclosed() {
+        let src = "a[0;";
+        let expected = LoxErrorsTypes::Syntax("Expected ']' after".to_string());
         perform_err(src, expected)
     }
 }
