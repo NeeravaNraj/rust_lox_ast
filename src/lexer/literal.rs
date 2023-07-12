@@ -9,9 +9,11 @@ pub enum Literal {
     Str(String),
     Bool(bool),
     Func(Callable),
+    Array(Vec<Literal>),
     None,
     LiteralNone,
 }
+
 
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -21,6 +23,7 @@ impl Display for Literal {
             Self::None => write!(f, "none"),
             Self::Bool(bool) => write!(f, "{bool}"),
             Self::Func(_) => write!(f, "_Function_"),
+            Self::Array(_) => write!(f, "Array []"),
             Self::LiteralNone => write!(f, "_LiteralNone_"), // This none is for internal use only
         }
     }
@@ -75,12 +78,36 @@ impl Literal {
         false
     }
 
+    pub fn get_value(&self) -> String {
+        match self {
+            Self::Number(num) => num.to_string(),
+            Self::Str(str) => str.to_string(),
+            Self::Bool(bool) => bool.to_string(),
+            Self::None => String::from("none"),
+            Self::Func(func) => func.to_string(),
+            Self::Array(arr) => {
+                let mut str = "[".to_string();
+                let len = arr.len();
+                for (i, el) in arr.iter().enumerate() {
+                    str.push_str(&el.get_value());
+                    if len > 1 && len - 1 != i {
+                        str.push_str(", ");
+                    }
+                }
+                str.push(']');
+                str
+            },
+            Self::LiteralNone => String::from("none"),
+        }
+    }
+
     pub fn print_value(&self) {
         match self {
             Self::Number(num) => println!("{num}"),
             Self::Str(str) => println!("{str}"),
             Self::Bool(bool) => println!("{bool}"),
             Self::Func(func) => println!("{}", func.to_string()),
+            Self::Array(_) => println!("{}", self.get_value()),
             Self::None => println!("{}", self),
             Self::LiteralNone => println!("{}", Literal::None),
         }
@@ -93,6 +120,7 @@ impl Literal {
             Self::Bool(bool) => Self::Bool(bool.to_owned()),
             Self::None => Self::None,
             Self::Func(func) => Self::Func(func.clone()),
+            Self::Array(arr) => Self::Array(arr.clone()),
             Self::LiteralNone => Self::LiteralNone,
         }
     }

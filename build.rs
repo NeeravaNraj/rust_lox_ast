@@ -16,6 +16,7 @@ fn main() -> io::Result<()> {
         "CompoundAssign ; name: Token, operator: Token, value: Expr".to_string(),
         "Call ; callee: Expr, paren: Token, args: Vec<Expr>".to_string(),
         "Lambda ; params: Rc<Vec<Token>>, body: Rc<Vec<Stmt>>".to_string(),
+        "Array ; arr: Vec<Expr>".to_string(),
     ];
 
     let expr_mods = vec![

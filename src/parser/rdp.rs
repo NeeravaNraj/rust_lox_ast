@@ -364,6 +364,24 @@ impl<'a> Parser<'a> {
         )))
     }
 
+    fn array_expr(&mut self) -> Result<Expr, LoxResult> {
+        let mut elems = Vec::new();
+        
+        if !self.check(TokenType::RightBracket) {
+            elems.push(self.expression()?);
+            while self.match_single_token(TokenType::Comma) {
+                elems.push(self.expression()?);
+            }
+        }
+
+        self.consume(
+            TokenType::RightBracket, 
+            LoxErrorsTypes::Syntax("Expected ']' after".to_string())
+        )?;
+
+        Ok(Expr::Array(ArrayExpr::new(elems)))
+    }
+
     fn primary(&mut self) -> Result<Expr, LoxResult> {
         if self.match_single_token(TokenType::False) {
             return Ok(Expr::Literal(LiteralExpr::new(Literal::Bool(false))));
@@ -406,6 +424,10 @@ impl<'a> Parser<'a> {
                 LoxErrorsTypes::Syntax("Expected ')' after expression, at".to_string()),
             )?;
             return Ok(Expr::Grouping(GroupingExpr::new(expr)));
+        }
+
+        if self.match_single_token(TokenType::LeftBracket) {
+            return self.array_expr()
         }
 
         if self.curr == 0 {
@@ -461,6 +483,10 @@ impl<'a> Parser<'a> {
         }
 
         Ok(expr)
+    }
+
+    fn array_subscript(&mut self) -> Result<Expr, LoxResult> {
+        todo!()
     }
 
     fn unary(&mut self) -> Result<Expr, LoxResult> {
@@ -710,7 +736,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Add, fmt::format};
+    use std::ops::Add;
 
     use super::*;
     use crate::Scanner;
@@ -845,6 +871,20 @@ mod tests {
                 "CompoundAssignExpr {} {} {val}",
                 expr.name.lexeme, expr.operator.lexeme
             );
+            Ok(str)
+        }
+
+        fn visit_array_expr(&self, expr: &ArrayExpr, _: u16) -> Result<String, LoxResult> {
+            let mut str = String::from("ArrayExpr ");
+            let len = expr.arr.len();
+            str.push('[');
+            for (i, el) in expr.arr.iter().enumerate() {
+                str.push_str(&self.evaluate(el)?);
+                if len > 1 && len - 1 != i {
+                    str.push_str(", ");
+                }
+            }
+            str.push(']');
             Ok(str)
         }
     }
@@ -2767,6 +2807,59 @@ mod tests {
     fn fn_statement_unclosed_body() {
         let src = "fn test(a) {";
         let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn array_expr() {
+        let src = "[1, 2, 3];";
+        let expected = vec!["ExpressionStmt ArrayExpr [LiteralExpr Number { 1 }, LiteralExpr Number { 2 }, LiteralExpr Number { 3 }]"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn array_expr_multi_type() {
+        let src = "[1, \"str\", true, none];";
+        let expected = vec!["ExpressionStmt ArrayExpr [LiteralExpr Number { 1 }, LiteralExpr String { \"str\" }, LiteralExpr true, LiteralExpr none]"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn array_expr_nested() {
+        let src = "[
+            [1, 2, 3],
+            [true, false, none],
+            [\"Str1\", \"Str2\", \"Str3\"]
+        ];";
+        let expected = vec!["ExpressionStmt ArrayExpr [ArrayExpr [LiteralExpr Number { 1 }, LiteralExpr Number { 2 }, LiteralExpr Number { 3 }], ArrayExpr [LiteralExpr true, LiteralExpr false, LiteralExpr none], ArrayExpr [LiteralExpr String { \"Str1\" }, LiteralExpr String { \"Str2\" }, LiteralExpr String { \"Str3\" }]]"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn array_expr_expression_as_elements() {
+        let src = "[a, 1 + 2, a > 2, lm(){ print 123; }];";
+        let expected = vec!["ExpressionStmt ArrayExpr [VariableExpr a, BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }, BinaryExpr VariableExpr a > LiteralExpr Number { 2 }, LambdaExpr lm() { PrintStmt LiteralExpr Number { 123 } }]"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn array_expr_trailing_comma() {
+        let src = "[1, 2,];";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn array_expr_unclosed_array() {
+        let src = "[1, 2;";
+        let expected = LoxErrorsTypes::Syntax("Expected ']' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn array_expr_no_semicolon() {
+        let src = "[1, 2]";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
         perform_err(src, expected)
     }
 }

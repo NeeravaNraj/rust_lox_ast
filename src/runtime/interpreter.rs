@@ -461,6 +461,15 @@ impl VisitorExpr<Literal> for Interpreter {
             })
         )
     }
+
+    fn visit_array_expr(&self, expr: &ArrayExpr, _: u16) -> Result<Literal, LoxResult> {
+        let mut arr = Vec::new();
+        for val in &expr.arr {
+            arr.push(self.evaluate(val)?);
+        }
+
+        Ok(Literal::Array(arr))
+    }
 }
 
 impl VisitorStmt<()> for Interpreter {
