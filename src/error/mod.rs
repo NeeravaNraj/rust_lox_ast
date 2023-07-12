@@ -7,6 +7,7 @@ pub enum LoxErrorsTypes {
     Lexer(String),
     Syntax(String),
     Parse(String),
+    ReferenceError(String),
     Runtime(String),
     Type(String),
     System(String),
@@ -21,6 +22,7 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::Runtime(string) => string.to_string(),
             LoxErrorsTypes::Type(string) => string.to_string(),
             LoxErrorsTypes::System(string) => string.to_string(),
+            LoxErrorsTypes::ReferenceError(string) => string.to_string(),
         }
     }
 
@@ -32,6 +34,7 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::Runtime(_) => LoxErrorsTypes::Runtime("".to_string()).to_string(),
             LoxErrorsTypes::Type(_) => LoxErrorsTypes::Type("".to_string()).to_string(),
             LoxErrorsTypes::System(_) => LoxErrorsTypes::System("".to_string()).to_string(),
+            LoxErrorsTypes::ReferenceError(_) => LoxErrorsTypes::ReferenceError("".to_string()).to_string(),
         }
     }
 }
@@ -45,6 +48,7 @@ impl ToString for LoxErrorsTypes {
             Self::Runtime(_) => "RuntimeError".to_string(),
             Self::Type(_) => "TypeError".to_string(),
             Self::System(_) => "SystemError".to_string(),
+            Self::ReferenceError(_) => "ReferenceError".to_string(),
         }
     }
 }

@@ -16,7 +16,7 @@ impl GenAst {
         types: Vec<String>,
         mods: Vec<String>,
     ) -> std::io::Result<()> {
-        let basename = basename.into();
+        let basename: String = basename.into();
         let file_path = file_path.into();
         let path = format!("{}/{}{}", file_path, basename.to_lowercase(), ".rs");
         let mut file = fs::File::create(path)?;
@@ -29,7 +29,7 @@ impl GenAst {
         for t in &types {
             let type_split: Vec<&str> = t.split(';').collect();
             let type_name = type_split[0].trim();
-            writeln!(file, "    {}(Box<{}{}>),", type_name, type_name, basename)?;
+            writeln!(file, "    {}(Rc<{}{}>),", type_name, type_name, basename)?;
         }
         file.write_all("}\n\n".as_bytes())?;
         for t in &types {
@@ -39,14 +39,16 @@ impl GenAst {
             GenAst::define_type(&mut file, type_name, type_fields, &basename)?;
         }
         writeln!(file, "impl {} {{", basename)?;
-        writeln!(file, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxResult> {{", basename)?;
+        writeln!(file, "    pub fn accept<T>(&self, wrapper: Rc<{0}>, visitor: &dyn Visitor{0}<T>, depth: u16) -> Result<T, LoxResult> {{", basename)?;
         writeln!(file, "        match self {{")?;
         for t in &types {
             let type_name = t.split_once(';').unwrap().0.trim();
             writeln!(
                 file,
-                "            {}::{}(t) => t.accept(visitor, depth),",
-                basename, type_name
+                "            {0}::{1}(t) => visitor.visit_{2}_{3}(wrapper, &t, depth),",
+                basename, type_name,
+                type_name.to_lowercase(),
+                basename.to_lowercase(), 
             )?;
         }
         writeln!(file, "        }}")?;
@@ -70,8 +72,8 @@ impl GenAst {
         writeln!(f)?;
 
         writeln!(f, "impl {}{} {{", type_name, basename)?;
-        writeln!(f, "    pub fn new({}) -> Box<Self> {{", type_fields)?;
-        writeln!(f, "        Box::new(")?;
+        writeln!(f, "    pub fn new({}) -> Rc<Self> {{", type_fields)?;
+        writeln!(f, "        Rc::new(")?;
         writeln!(f, "            Self {{")?;
         for field in &fields {
             let field_name: Vec<&str> = field.split(':').collect();
@@ -79,15 +81,6 @@ impl GenAst {
         }
         writeln!(f, "            }}")?;
         writeln!(f, "        )")?;
-        writeln!(f, "    }}")?;
-        writeln!(f)?;
-        writeln!(f, "    pub fn accept<T>(&self, visitor: &dyn Visitor{}<T>, depth: u16) -> Result<T, LoxResult> {{", basename)?;
-        writeln!(
-            f,
-            "        visitor.visit_{}_{}(self, depth)",
-            type_name.to_lowercase(),
-            basename.to_lowercase()
-        )?;
         writeln!(f, "    }}")?;
         writeln!(f, "}}\n")?;
         Ok(())
@@ -101,9 +94,8 @@ impl GenAst {
             let type_name = type_split[0].trim();
             writeln!(
                 f,
-                "    fn visit_{}_{}(&self, {}: &{}{}, depth: u16) -> Result<T, LoxResult>;\n",
+                "    fn visit_{0}_{1}(&self, wrapper: Rc<{3}>, {1}: &{2}{3}, depth: u16) -> Result<T, LoxResult>;\n",
                 type_name.to_lowercase(),
-                basename.to_lowercase(),
                 basename.to_lowercase(),
                 type_name,
                 basename

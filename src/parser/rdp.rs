@@ -24,8 +24,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>, LoxResult> {
-        let mut statments: Vec<Stmt> = Vec::new();
+    pub fn parse(&mut self) -> Result<Vec<Rc<Stmt>>, LoxResult> {
+        let mut statments: Vec<Rc<Stmt>> = Vec::new();
         while !self.is_at_end() {
             statments.push(self.declaration()?);
         }
@@ -33,7 +33,7 @@ impl<'a> Parser<'a> {
         Ok(statments)
     }
 
-    fn var_declaration(&mut self) -> Result<Stmt, LoxResult> {
+    fn var_declaration(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let name = self.consume(
             TokenType::Identifier,
             LoxErrorsTypes::Syntax("Expected name for identifier".to_string()),
@@ -49,10 +49,10 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expect ';' after".to_string()),
         )?;
 
-        Ok(Stmt::Let(LetStmt::new(name, initializer)))
+        Ok(Rc::new(Stmt::Let(LetStmt::new(name, initializer))))
     }
 
-    fn function(&mut self, kind: &str) -> Result<Stmt, LoxResult> {
+    fn function(&mut self, kind: &str) -> Result<Rc<Stmt>, LoxResult> {
         let name = self.consume(
             TokenType::Identifier,
             LoxErrorsTypes::Syntax(format!("Expected {kind} name after")),
@@ -95,16 +95,16 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax(format!("Expected '{{' before {kind} body")),
         )?;
 
-        let body: Vec<Stmt> = self.block_stmt()?;
+        let body = self.block_stmt()?;
 
-        Ok(Stmt::Function(FunctionStmt::new(
+        Ok(Rc::new(Stmt::Function(FunctionStmt::new(
             name,
             Rc::new(params),
             Rc::new(body),
-        )))
+        ))))
     }
 
-    fn declaration(&mut self) -> Result<Stmt, LoxResult> {
+    fn declaration(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let result = if self.match_single_token(TokenType::Let) {
             self.var_declaration()
         } else if self.match_single_token(TokenType::DefFn) {
@@ -118,8 +118,8 @@ impl<'a> Parser<'a> {
         result
     }
 
-    fn block_stmt(&mut self) -> Result<Vec<Stmt>, LoxResult> {
-        let mut stmts: Vec<Stmt> = Vec::new();
+    fn block_stmt(&mut self) -> Result<Vec<Rc<Stmt>>, LoxResult> {
+        let mut stmts: Vec<Rc<Stmt>> = Vec::new();
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             stmts.push(self.declaration()?);
@@ -132,25 +132,25 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
-    fn print_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn print_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let expr = self.expression()?;
         self.consume(
             TokenType::Semicolon,
             LoxErrorsTypes::Syntax("Expected ';' after".to_string()),
         )?;
-        Ok(Stmt::Print(PrintStmt::new(expr)))
+        Ok(Rc::new(Stmt::Print(PrintStmt::new(expr))))
     }
 
-    fn expr_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn expr_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let expr = self.expression()?;
         self.consume(
             TokenType::Semicolon,
             LoxErrorsTypes::Syntax("Expected ';' after".to_string()),
         )?;
-        Ok(Stmt::Expression(ExpressionStmt::new(expr)))
+        Ok(Rc::new(Stmt::Expression(ExpressionStmt::new(expr))))
     }
 
-    fn if_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn if_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         self.consume(
             TokenType::LeftParen,
             LoxErrorsTypes::Syntax("Expected '(' after".to_string()),
@@ -162,21 +162,21 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected ')' after".to_string()),
         )?;
 
-        let then_branch = Box::new(self.statement()?);
-        let mut alternative: Option<Box<Stmt>> = None;
+        let then_branch = self.statement()?;
+        let mut alternative: Option<Rc<Stmt>> = None;
 
         if self.match_single_token(TokenType::Elif) {
-            alternative = Some(Box::new(self.if_statement()?));
+            alternative = Some(self.if_statement()?);
         }
 
         if self.match_single_token(TokenType::Else) {
-            alternative = Some(Box::new(self.statement()?));
+            alternative = Some(self.statement()?);
         }
 
-        Ok(Stmt::If(IfStmt::new(condition, then_branch, alternative)))
+        Ok(Rc::new(Stmt::If(IfStmt::new(condition, then_branch, alternative))))
     }
 
-    fn while_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn while_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         self.consume(
             TokenType::LeftParen,
             LoxErrorsTypes::Syntax("Expected '(' after".to_string()),
@@ -188,23 +188,23 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected ')' after".to_string()),
         )?;
 
-        let body = Box::new(self.statement()?);
-        Ok(Stmt::While(WhileStmt::new(condition, body)))
+        let body = self.statement()?;
+        Ok(Rc::new(Stmt::While(WhileStmt::new(condition, body))))
     }
 
-    fn for_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn for_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         self.consume(
             TokenType::LeftParen,
             LoxErrorsTypes::Syntax("Expected '(' after".to_string()),
         )?;
 
-        let mut initializer: Option<Box<Stmt>> = None;
+        let mut initializer: Option<Rc<Stmt>> = None;
 
         if self.peek().token_type == TokenType::Let {
             self.match_single_token(TokenType::Let);
-            initializer = Some(Box::new(self.var_declaration()?));
+            initializer = Some(self.var_declaration()?);
         } else if !self.check(TokenType::Semicolon) {
-            initializer = Some(Box::new(self.expr_statement()?));
+            initializer = Some(self.expr_statement()?);
         } else {
             self.consume(
                 TokenType::Semicolon,
@@ -214,7 +214,7 @@ impl<'a> Parser<'a> {
             )?;
         }
 
-        let mut condition: Option<Expr> = None;
+        let mut condition: Option<Rc<Expr>> = None;
         if !self.check(TokenType::Semicolon) {
             condition = Some(self.expression()?);
         }
@@ -224,7 +224,7 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected ';' after loop condition".to_string()),
         )?;
 
-        let mut increment: Option<Expr> = None;
+        let mut increment: Option<Rc<Expr>> = None;
         if !self.check(TokenType::RightParen) {
             increment = Some(self.expression()?);
         }
@@ -234,37 +234,37 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected ')' after for clauses".to_string()),
         )?;
 
-        let body = Box::new(self.statement()?);
+        let body = self.statement()?;
 
-        Ok(Stmt::For(ForStmt::new(
+        Ok(Rc::new(Stmt::For(ForStmt::new(
             initializer,
             condition,
             increment,
             body,
-        )))
+        ))))
     }
 
-    fn break_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn break_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let tok = self.previous();
         self.consume(
             TokenType::Semicolon,
             LoxErrorsTypes::Syntax("Expected ';' after statement".to_string()),
         )?;
-        Ok(Stmt::Break(BreakStmt::new(tok)))
+        Ok(Rc::new(Stmt::Break(BreakStmt::new(tok))))
     }
 
-    fn continue_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn continue_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let tok = self.previous();
         self.consume(
             TokenType::Semicolon,
             LoxErrorsTypes::Syntax("Expected ';' after statement".to_string()),
         )?;
-        Ok(Stmt::Continue(ContinueStmt::new(tok)))
+        Ok(Rc::new(Stmt::Continue(ContinueStmt::new(tok))))
     }
 
-    fn return_statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn return_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let keyword = self.previous();
-        let mut value = Expr::Literal(LiteralExpr::new(Literal::None));
+        let mut value = Rc::new(Expr::Literal(LiteralExpr::new(Literal::None)));
         if !self.check(TokenType::Semicolon) {
             value = self.expression()?;
         }
@@ -273,16 +273,16 @@ impl<'a> Parser<'a> {
             TokenType::Semicolon,
             LoxErrorsTypes::Syntax("Expected ';' after".to_string()),
         )?;
-        Ok(Stmt::Return(ReturnStmt::new(keyword, value)))
+        Ok(Rc::new(Stmt::Return(ReturnStmt::new(keyword, value))))
     }
 
-    fn statement(&mut self) -> Result<Stmt, LoxResult> {
+    fn statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
         }
 
         if self.match_single_token(TokenType::LeftBrace) {
-            return Ok(Stmt::Block(BlockStmt::new(self.block_stmt()?)));
+            return Ok(Rc::new(Stmt::Block(BlockStmt::new(self.block_stmt()?))));
         }
 
         if self.match_single_token(TokenType::If) {
@@ -319,7 +319,7 @@ impl<'a> Parser<'a> {
         Err(self.error_handler.error(&self.previous(), error))
     }
 
-    fn lambda_fn(&mut self) -> Result<Expr, LoxResult> {
+    fn lambda_fn(&mut self) -> Result<Rc<Expr>, LoxResult> {
         self.consume(
             TokenType::LeftParen,
             LoxErrorsTypes::Syntax("Expected '(' after function declaration".to_string()),
@@ -358,13 +358,13 @@ impl<'a> Parser<'a> {
 
         let body = self.block_stmt()?;
 
-        Ok(Expr::Lambda(LambdaExpr::new(
+        Ok(Rc::new(Expr::Lambda(LambdaExpr::new(
             Rc::new(params),
             Rc::new(body),
-        )))
+        ))))
     }
 
-    fn array_expr(&mut self) -> Result<Expr, LoxResult> {
+    fn array_expr(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut elems = Vec::new();
         
         if !self.check(TokenType::RightBracket) {
@@ -379,35 +379,35 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected ']' after".to_string())
         )?;
 
-        Ok(Expr::Array(ArrayExpr::new(elems)))
+        Ok(Rc::new(Expr::Array(ArrayExpr::new(elems))))
     }
 
-    fn primary(&mut self) -> Result<Expr, LoxResult> {
+    fn primary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         if self.match_single_token(TokenType::False) {
-            return Ok(Expr::Literal(LiteralExpr::new(Literal::Bool(false))));
+            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(false)))));
         }
 
         if self.match_single_token(TokenType::True) {
-            return Ok(Expr::Literal(LiteralExpr::new(Literal::Bool(true))));
+            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(true)))));
         }
 
         if self.match_single_token(TokenType::None) {
-            return Ok(Expr::Literal(LiteralExpr::new(Literal::None)));
+            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::None))));
         }
 
         if self.match_single_token(TokenType::Identifier) {
-            return Ok(Expr::Variable(VariableExpr::new(self.previous())));
+            return Ok(Rc::new(Expr::Variable(VariableExpr::new(self.previous()))));
         }
 
         if self.is_match(vec![TokenType::Number, TokenType::String]) {
             match self.previous().literal.as_ref().unwrap() {
                 Literal::Number(literal) => {
-                    return Ok(Expr::Literal(LiteralExpr::new(Literal::Number(*literal))))
+                    return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Number(*literal)))))
                 }
                 Literal::Str(literal) => {
-                    return Ok(Expr::Literal(LiteralExpr::new(Literal::Str(
+                    return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Str(
                         literal.to_string(),
-                    ))))
+                    )))))
                 }
                 _ => {}
             }
@@ -423,7 +423,7 @@ impl<'a> Parser<'a> {
                 TokenType::RightParen,
                 LoxErrorsTypes::Syntax("Expected ')' after expression, at".to_string()),
             )?;
-            return Ok(Expr::Grouping(GroupingExpr::new(expr)));
+            return Ok(Rc::new(Expr::Grouping(GroupingExpr::new(expr))));
         }
 
         if self.match_single_token(TokenType::LeftBracket) {
@@ -443,8 +443,8 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn finish_call(&mut self, callee: Expr) -> Result<Expr, LoxResult> {
-        let mut args: Vec<Expr> = Vec::new();
+    fn finish_call(&mut self, callee: Rc<Expr>) -> Result<Rc<Expr>, LoxResult> {
+        let mut args: Vec<Rc<Expr>> = Vec::new();
         if self.check(TokenType::Semicolon) {
             return Err(self.error_handler.error(
                 self.peek(), 
@@ -468,10 +468,10 @@ impl<'a> Parser<'a> {
             TokenType::RightParen,
             LoxErrorsTypes::Syntax("Expected ')' after".to_string()),
         )?;
-        Ok(Expr::Call(CallExpr::new(callee, paren, args)))
+        Ok(Rc::new(Expr::Call(CallExpr::new(callee, paren, args))))
     }
 
-    fn call(&mut self) -> Result<Expr, LoxResult> {
+    fn call(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.primary()?;
 
         loop {
@@ -485,17 +485,17 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn finish_index(&mut self, var: Expr) -> Result<Expr, LoxResult> {
+    fn finish_index(&mut self, var: Rc<Expr>) -> Result<Rc<Expr>, LoxResult> {
         let bracket = self.previous();
         let index = self.expression()?;
         self.consume(
             TokenType::RightBracket, 
             LoxErrorsTypes::Syntax("Expected ']' after".to_string())
         )?;
-        Ok(Expr::Index(IndexExpr::new(Box::new(var), bracket, Box::new(index))))
+        Ok(Rc::new(Expr::Index(IndexExpr::new(var, bracket, index))))
     }
 
-    fn array_subscript(&mut self) -> Result<Expr, LoxResult> {
+    fn array_subscript(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.call()?;
 
         loop {
@@ -509,38 +509,38 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expr, LoxResult> {
+    fn unary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         if self.is_match(vec![TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous();
-            return Ok(Expr::Unary(UnaryExpr::new(operator, self.unary()?)));
+            return Ok(Rc::new(Expr::Unary(UnaryExpr::new(operator, self.unary()?))));
         }
 
         self.array_subscript()
     }
 
-    fn factor(&mut self) -> Result<Expr, LoxResult> {
+    fn factor(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.unary()?;
 
         while self.is_match(vec![TokenType::Slash, TokenType::Star]) {
             let operator = self.previous();
-            expr = Expr::Binary(BinaryExpr::new(expr, operator, self.unary()?));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.unary()?)));
         }
 
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expr, LoxResult> {
+    fn term(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.factor()?;
 
         while self.is_match(vec![TokenType::Plus, TokenType::Minus]) {
             let operator = self.previous();
-            expr = Expr::Binary(BinaryExpr::new(expr, operator, self.factor()?));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.factor()?)));
         }
 
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expr, LoxResult> {
+    fn comparison(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.term()?;
 
         while self.is_match(vec![
@@ -550,45 +550,45 @@ impl<'a> Parser<'a> {
             TokenType::LessEqual,
         ]) {
             let operator = self.previous();
-            expr = Expr::Binary(BinaryExpr::new(expr, operator, self.term()?));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.term()?)));
         }
         Ok(expr)
     }
 
-    fn equality(&mut self) -> Result<Expr, LoxResult> {
+    fn equality(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.comparison()?;
 
         while self.is_match(vec![TokenType::BangEqual, TokenType::Equals]) {
             let operator = self.previous();
-            expr = Expr::Binary(BinaryExpr::new(expr, operator, self.comparison()?));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.comparison()?)));
         }
         Ok(expr)
     }
 
-    fn and(&mut self) -> Result<Expr, LoxResult> {
+    fn and(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.equality()?;
 
         while self.match_single_token(TokenType::And) {
             let op = self.previous();
             let right = self.equality()?;
-            expr = Expr::Logical(LogicalExpr::new(expr, op, right));
+            expr = Rc::new(Expr::Logical(LogicalExpr::new(expr, op, right)));
         }
 
         Ok(expr)
     }
 
-    fn or(&mut self) -> Result<Expr, LoxResult> {
+    fn or(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.and()?;
 
         while self.match_single_token(TokenType::Or) {
             let op = self.previous();
             let right = self.and()?;
-            expr = Expr::Logical(LogicalExpr::new(expr, op, right));
+            expr = Rc::new(Expr::Logical(LogicalExpr::new(expr, op, right)));
         }
         Ok(expr)
     }
 
-    fn ternary(&mut self) -> Result<Expr, LoxResult> {
+    fn ternary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let expr = self.or()?;
 
         if self.match_single_token(TokenType::QuestionMark) {
@@ -596,13 +596,13 @@ impl<'a> Parser<'a> {
             let middle = self.expression()?;
             if self.match_single_token(TokenType::Colon) {
                 let colon = self.previous();
-                return Ok(Expr::Ternary(TernaryExpr::new(
+                return Ok(Rc::new(Expr::Ternary(TernaryExpr::new(
                     expr,
                     operator,
                     middle,
                     colon,
                     self.expression()?,
-                )));
+                ))));
             }
             return Err(self.error_handler.error(
                 &self.previous(),
@@ -613,17 +613,17 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn assignment(&mut self) -> Result<Expr, LoxResult> {
+    fn assignment(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let expr = self.ternary()?;
 
         if self.match_single_token(TokenType::Assign) {
             let token = self.previous();
             let value = self.assignment()?;
 
-            match expr {
+            match &*expr {
                 Expr::Variable(var) => {
-                    let name = var.name;
-                    return Ok(Expr::Assign(AssignExpr::new(name, value)));
+                    let name = var.name.dup();
+                    return Ok(Rc::new(Expr::Assign(AssignExpr::new(name, value))));
                 }
                 _ => {
                     return Err(self.error_handler.error(
@@ -637,7 +637,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn compound_assignment(&mut self) -> Result<Expr, LoxResult> {
+    fn compound_assignment(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let expr = self.assignment()?;
 
         if self.is_match(vec![
@@ -662,12 +662,12 @@ impl<'a> Parser<'a> {
                 _ => {}
             }
 
-            match expr {
+            match &*expr {
                 Expr::Variable(var) => {
-                    let name = var.name;
-                    return Ok(Expr::CompoundAssign(CompoundAssignExpr::new(
+                    let name = var.name.dup();
+                    return Ok(Rc::new(Expr::CompoundAssign(CompoundAssignExpr::new(
                         name, token, value,
-                    )));
+                    ))));
                 }
                 _ => {
                     return Err(self.error_handler.error(
@@ -680,7 +680,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn expression(&mut self) -> Result<Expr, LoxResult> {
+    fn expression(&mut self) -> Result<Rc<Expr>, LoxResult> {
         self.compound_assignment()
     }
 
@@ -757,17 +757,17 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use std::ops::Add;
-
+    use std::rc::Rc;
     use super::*;
     use crate::Scanner;
 
     struct AstTraverser<'a> {
-        statements: &'a Vec<Stmt>,
+        statements: &'a Vec<Rc<Stmt>>,
         strings: Vec<String>,
     }
 
     impl<'a> AstTraverser<'a> {
-        fn new(statements: &'a Vec<Stmt>) -> Self {
+        fn new(statements: &'a Vec<Rc<Stmt>>) -> Self {
             Self {
                 statements,
                 strings: Vec::new(),
@@ -776,30 +776,30 @@ mod tests {
 
         fn gen(&mut self) -> Result<&Vec<String>, LoxResult> {
             for stmt in self.statements {
-                let str = self.execute(&stmt)?;
+                let str = self.execute(stmt.clone())?;
                 self.strings.push(str);
             }
             Ok(&self.strings)
         }
 
-        fn evaluate(&self, expr: &Expr) -> Result<String, LoxResult> {
-            expr.accept(self, 0_u16)
+        fn evaluate(&self, expr: Rc<Expr>) -> Result<String, LoxResult> {
+            expr.accept(expr.clone(), self, 0_u16)
         }
 
-        fn execute(&self, stmt: &Stmt) -> Result<String, LoxResult> {
-            stmt.accept(self, 0_u16)
+        fn execute(&self, stmt: Rc<Stmt>) -> Result<String, LoxResult> {
+            stmt.accept(stmt.clone(), self, 0_u16)
         }
     }
 
     impl<'a> VisitorExpr<String> for AstTraverser<'a> {
-        fn visit_call_expr(&self, expr: &CallExpr, _: u16) -> Result<String, LoxResult> {
-            let callee = self.evaluate(&expr.callee)?;
+        fn visit_call_expr(&self, _: Rc<Expr>, expr: &CallExpr, _: u16) -> Result<String, LoxResult> {
+            let callee = self.evaluate(expr.callee.clone())?;
             let mut str = format!("CallExpr {callee}");
             if expr.args.len() > 0 {
                 str.push(' ');
             }
             for (i, arg) in expr.args.iter().enumerate() {
-                str = str.add(&self.evaluate(&arg)?);
+                str = str.add(&self.evaluate(arg.clone())?);
                 if expr.args.len() > 1 && expr.args.len() - 1 != i {
                     str.push(' ');
                 }
@@ -808,26 +808,26 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_unary_expr(&self, expr: &UnaryExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_unary_expr(&self, _: Rc<Expr>, expr: &UnaryExpr, _: u16) -> Result<String, LoxResult> {
             let op = &expr.operator.lexeme;
-            let right = self.evaluate(&expr.right)?;
+            let right = self.evaluate(expr.right.clone())?;
             let str = format!("UnaryExpr {op} {right}");
             Ok(str)
         }
 
-        fn visit_binary_expr(&self, expr: &BinaryExpr, _: u16) -> Result<String, LoxResult> {
-            let left = self.evaluate(&expr.left)?;
-            let right = self.evaluate(&expr.right)?;
+        fn visit_binary_expr(&self, _: Rc<Expr>, expr: &BinaryExpr, _: u16) -> Result<String, LoxResult> {
+            let left = self.evaluate(expr.left.clone())?;
+            let right = self.evaluate(expr.right.clone())?;
             let str = format!("BinaryExpr {left} {} {right}", expr.operator.lexeme);
             Ok(str)
         }
 
-        fn visit_assign_expr(&self, expr: &AssignExpr, _: u16) -> Result<String, LoxResult> {
-            let val = self.evaluate(&expr.value)?;
+        fn visit_assign_expr(&self, _: Rc<Expr>, expr: &AssignExpr, _: u16) -> Result<String, LoxResult> {
+            let val = self.evaluate(expr.value.clone())?;
             Ok(format!("AssignExpr {} = {val}", expr.name.lexeme))
         }
 
-        fn visit_lambda_expr(&self, expr: &LambdaExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_lambda_expr(&self, _: Rc<Expr>, expr: &LambdaExpr, _: u16) -> Result<String, LoxResult> {
             let mut params = "".to_string();
             for (i, param) in expr.params.iter().enumerate() {
                 params.push_str(&param.lexeme);
@@ -838,7 +838,7 @@ mod tests {
             let mut body = "{ ".to_string();
 
             for stmt in expr.body.iter() {
-                body.push_str(&self.execute(&stmt)?);
+                body.push_str(&self.execute(stmt.clone())?);
             }
 
             body.push_str(" }");
@@ -847,46 +847,47 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_logical_expr(&self, expr: &LogicalExpr, _: u16) -> Result<String, LoxResult> {
-            let left = self.evaluate(&expr.left)?;
-            let right = self.evaluate(&expr.right)?;
+        fn visit_logical_expr(&self, _: Rc<Expr>, expr: &LogicalExpr, _: u16) -> Result<String, LoxResult> {
+            let left = self.evaluate(expr.left.clone())?;
+            let right = self.evaluate(expr.right.clone())?;
             let str = format!("LogicalExpr {left} {} {right}", expr.operator.lexeme);
 
             Ok(str)
         }
 
-        fn visit_literal_expr(&self, expr: &LiteralExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_literal_expr(&self, _: Rc<Expr>, expr: &LiteralExpr, _: u16) -> Result<String, LoxResult> {
             let str = format!("LiteralExpr {}", expr.value);
             Ok(str)
         }
 
-        fn visit_ternary_expr(&self, expr: &TernaryExpr, _: u16) -> Result<String, LoxResult> {
-            let left = self.evaluate(&expr.left)?;
-            let middle = self.evaluate(&expr.middle)?;
-            let right = self.evaluate(&expr.right)?;
+        fn visit_ternary_expr(&self, _: Rc<Expr>, expr: &TernaryExpr, _: u16) -> Result<String, LoxResult> {
+            let left = self.evaluate(expr.left.clone())?;
+            let middle = self.evaluate(expr.middle.clone())?;
+            let right = self.evaluate(expr.right.clone())?;
             let str = format!("TernaryExpr {left} ? {middle} : {right}");
 
             Ok(str)
         }
 
-        fn visit_grouping_expr(&self, expr: &GroupingExpr, _: u16) -> Result<String, LoxResult> {
-            let inner = self.evaluate(&expr.expression)?;
+        fn visit_grouping_expr(&self, _: Rc<Expr>, expr: &GroupingExpr, _: u16) -> Result<String, LoxResult> {
+            let inner = self.evaluate(expr.expression.clone())?;
             let str = format!("GroupingExpr ({inner})");
 
             Ok(str)
         }
 
-        fn visit_variable_expr(&self, expr: &VariableExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_variable_expr(&self, _: Rc<Expr>, expr: &VariableExpr, _: u16) -> Result<String, LoxResult> {
             let str = format!("VariableExpr {}", expr.name.lexeme);
             Ok(str)
         }
 
         fn visit_compoundassign_expr(
             &self,
+            _: Rc<Expr>,
             expr: &CompoundAssignExpr,
             _: u16,
         ) -> Result<String, LoxResult> {
-            let val = self.evaluate(&expr.value)?;
+            let val = self.evaluate(expr.value.clone())?;
             let str = format!(
                 "CompoundAssignExpr {} {} {val}",
                 expr.name.lexeme, expr.operator.lexeme
@@ -894,12 +895,12 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_array_expr(&self, expr: &ArrayExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_array_expr(&self, _: Rc<Expr>, expr: &ArrayExpr, _: u16) -> Result<String, LoxResult> {
             let mut str = String::from("ArrayExpr ");
             let len = expr.arr.len();
             str.push('[');
             for (i, el) in expr.arr.iter().enumerate() {
-                str.push_str(&self.evaluate(el)?);
+                str.push_str(&self.evaluate(el.clone())?);
                 if len > 1 && len - 1 != i {
                     str.push_str(", ");
                 }
@@ -908,76 +909,76 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_index_expr(&self, expr: &IndexExpr, _: u16) -> Result<String, LoxResult> {
-            let name = self.evaluate(&expr.identifier)?;
-            let index = self.evaluate(&expr.index)?;
+        fn visit_index_expr(&self, _: Rc<Expr>, expr: &IndexExpr, _: u16) -> Result<String, LoxResult> {
+            let name = self.evaluate(expr.identifier.clone())?;
+            let index = self.evaluate(expr.index.clone())?;
             let str = format!("IndexExpr {} {}", name, index);
             Ok(str)
         }
     }
 
     impl<'a> VisitorStmt<String> for AstTraverser<'a> {
-        fn visit_if_stmt(&self, stmt: &IfStmt, _: u16) -> Result<String, LoxResult> {
-            let cond = self.evaluate(&stmt.condition)?;
-            let body = self.execute(&stmt.then_branch)?;
+        fn visit_if_stmt(&self, _: Rc<Stmt>, stmt: &IfStmt, _: u16) -> Result<String, LoxResult> {
+            let cond = self.evaluate(stmt.condition.clone())?;
+            let body = self.execute(stmt.then_branch.clone())?;
             let mut str = format!("IfStmt ({}) ", cond);
                 
             str.push_str(&body);
             if stmt.else_branch.is_some() {
-                let else_branch = self.execute(stmt.else_branch.as_ref().unwrap())?;
+                let else_branch = self.execute(stmt.else_branch.as_ref().unwrap().clone())?;
                 str.push_str(" else ");
                 str.push_str(&else_branch);
             }
             Ok(str)
         }
 
-        fn visit_let_stmt(&self, stmt: &LetStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_let_stmt(&self, _: Rc<Stmt>, stmt: &LetStmt, _: u16) -> Result<String, LoxResult> {
             let mut initializer = "not initialized".to_string();
             if stmt.initializer.is_some() {
-                initializer = self.evaluate(stmt.initializer.as_ref().unwrap())?;
+                initializer = self.evaluate(stmt.initializer.as_ref().unwrap().clone())?;
             }
             let str = format!("LetStmt {} = {}", stmt.name.lexeme, initializer);
             Ok(str)
         }
 
-        fn visit_for_stmt(&self, stmt: &ForStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_for_stmt(&self, _: Rc<Stmt>, stmt: &ForStmt, _: u16) -> Result<String, LoxResult> {
             let var_decl = if let Some(s) = &stmt.var {
-                self.execute(s)?
+                self.execute(s.clone())?
             } else {
                 "".to_string()
             };
 
             let condition = if let Some(c) = &stmt.condition {
-                self.evaluate(c)?
+                self.evaluate(c.clone())?
             } else {
                 "".to_string()
             };
 
             let update = if let Some(u) = &stmt.update_expr {
-                self.evaluate(u)?
+                self.evaluate(u.clone())?
             } else {
                 "".to_string()
             };
 
-            let body = self.execute(&stmt.body)?;
+            let body = self.execute(stmt.body.clone())?;
             let str = format!("ForStmt ({};{};{}) {}", var_decl, condition, update, body);
 
             Ok(str)
         }
 
-        fn visit_print_stmt(&self, stmt: &PrintStmt, _: u16) -> Result<String, LoxResult> {
-            let expr = self.evaluate(&stmt.expr)?;
+        fn visit_print_stmt(&self, _: Rc<Stmt>, stmt: &PrintStmt, _: u16) -> Result<String, LoxResult> {
+            let expr = self.evaluate(stmt.expr.clone())?;
             let str = format!("PrintStmt {expr}");
 
             Ok(str)
         }
 
-        fn visit_block_stmt(&self, stmt: &BlockStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_block_stmt(&self, _: Rc<Stmt>, stmt: &BlockStmt, _: u16) -> Result<String, LoxResult> {
             let mut str = format!("BlockStmt");
 
             str.push_str(" { ");
             for (i, val) in stmt.statements.iter().enumerate() {
-                let line = self.execute(&val)?;
+                let line = self.execute(val.clone())?;
                 str.push_str(&line);
                 if stmt.statements.len() > 1 && stmt.statements.len() - 1 != i {
                     str.push(' ');
@@ -987,31 +988,31 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_while_stmt(&self, stmt: &WhileStmt, _: u16) -> Result<String, LoxResult> {
-            let condition = self.evaluate(&stmt.condition)?;
-            let body = self.execute(&stmt.body)?;
+        fn visit_while_stmt(&self, _: Rc<Stmt>, stmt: &WhileStmt, _: u16) -> Result<String, LoxResult> {
+            let condition = self.evaluate(stmt.condition.clone())?;
+            let body = self.execute(stmt.body.clone())?;
             let str = format!("WhileStmt ({}) {}", condition, body);
             Ok(str)
         }
 
-        fn visit_break_stmt(&self, _: &BreakStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_break_stmt(&self, _: Rc<Stmt>, _: &BreakStmt, _: u16) -> Result<String, LoxResult> {
             let str = format!("BreakStmt");
             Ok(str)
         }
 
-        fn visit_return_stmt(&self, stmt: &ReturnStmt, _: u16) -> Result<String, LoxResult> {
-            let val = self.evaluate(&stmt.value)?;
+        fn visit_return_stmt(&self, _: Rc<Stmt>, stmt: &ReturnStmt, _: u16) -> Result<String, LoxResult> {
+            let val = self.evaluate(stmt.value.clone())?;
             let str = format!("ReturnStmt {val}");
 
             Ok(str)
         }
 
-        fn visit_continue_stmt(&self, _: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_continue_stmt(&self, _: Rc<Stmt>, _: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
             let str = format!("ContinueStmt");
             Ok(str)
         }
 
-        fn visit_function_stmt(&self, stmt: &FunctionStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_function_stmt(&self, _: Rc<Stmt>, stmt: &FunctionStmt, _: u16) -> Result<String, LoxResult> {
             let mut params = "".to_string();
             for (i, param) in stmt.params.iter().enumerate() {
                 params.push_str(&param.lexeme);
@@ -1022,7 +1023,7 @@ mod tests {
             let mut body = "{ ".to_string();
 
             for (i, val) in stmt.body.iter().enumerate() {
-                body.push_str(&self.execute(&val)?);
+                body.push_str(&self.execute(val.clone())?);
                 if stmt.body.len() > 1 && stmt.body.len() - 1 != i {
                     body.push(' ');
                 }
@@ -1036,10 +1037,11 @@ mod tests {
 
         fn visit_expression_stmt(
             &self,
+            _: Rc<Stmt>,
             stmt: &ExpressionStmt,
             _: u16,
         ) -> Result<String, LoxResult> {
-            let expr = self.evaluate(&stmt.expr)?;
+            let expr = self.evaluate(stmt.expr.clone())?;
             let str = format!("ExpressionStmt {expr}");
             Ok(str)
         }

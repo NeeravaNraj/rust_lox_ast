@@ -1,11 +1,11 @@
 use super::{callable::LoxCallable, environment::Environment, interpreter::Interpreter};
-use crate::{error::*, lexer::literal::Literal, lexer::token::*, lexer::tokentype::*, parser::{stmt::*, expr::LambdaExpr}};
+use crate::{error::*, lexer::literal::Literal, lexer::token::*, parser::{stmt::*, expr::LambdaExpr}};
 use std::{fmt::Display, rc::Rc, cell::RefCell};
 
 pub struct LoxFunction {
     name: Option<Token>,
     params: Rc<Vec<Token>>,
-    body: Rc<Vec<Stmt>>,
+    body: Rc<Vec<Rc<Stmt>>>,
     closure: Rc<RefCell<Environment>>
 }
 
@@ -14,7 +14,7 @@ impl LoxFunction {
         Self {
             name: Some(decl.name.dup()),
             params: Rc::clone(&decl.params),
-            body: Rc::clone(&decl.body),
+            body: decl.body.clone(),
             closure: Rc::clone(env)
         }
     }
