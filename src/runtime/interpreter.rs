@@ -9,7 +9,7 @@ use crate::{
     loxlib::loxnatives::Clock,
     parser::{expr::*, stmt::*},
 };
-use std::rc::Rc;
+use std::{rc::Rc, collections::HashMap};
 use std::{
     cell::RefCell,
     ops::{Add, Div, Mul, Sub},
@@ -17,6 +17,7 @@ use std::{
 
 pub struct Interpreter {
     pub globals: Rc<RefCell<Environment>>,
+    pub locals: RefCell<HashMap<Rc<Expr>, usize>>,
     pub environment: RefCell<Rc<RefCell<Environment>>>,
     pub error_handler: LoxErrorHandler,
     is_repl: bool,
@@ -37,6 +38,7 @@ impl Interpreter {
         }
         Self {
             globals: Rc::clone(&globals),
+            locals: RefCell::new(HashMap::new()),
             error_handler: LoxErrorHandler::new(),
             environment: RefCell::new(Rc::clone(&globals)),
             is_repl: false,
@@ -65,6 +67,10 @@ impl Interpreter {
 
     pub fn execute(&self, stmt: Rc<Stmt>) -> Result<(), LoxResult> {
         stmt.accept(stmt.clone(), self, 0_u16)
+    }
+
+    pub fn resolve(&self, expr: Rc<Expr>, depth: usize) {
+        self.locals.borrow_mut().insert(expr, depth);
     }
 
     pub fn is_truthy(&self, right: &Literal) -> bool {

@@ -23,7 +23,8 @@ fn main() -> io::Result<()> {
         "crate::lexer::{token::Token, literal::Literal}".to_string(),
         "crate::error::LoxResult".to_string(),
         "super::stmt::*".to_string(),
-        "std::rc::Rc".to_string()
+        "std::rc::Rc".to_string(),
+        "std::hash::{Hash, Hasher}".to_string()
     ];
 
     let stmt_type = vec![
@@ -45,6 +46,7 @@ fn main() -> io::Result<()> {
         "crate::error::LoxResult".to_string(),
         "std::rc::Rc".to_string(),
         "super::expr::*".to_string(),
+        "std::hash::{Hash, Hasher}".to_string()
     ];
 
     let out_dir = "./src/parser/";
