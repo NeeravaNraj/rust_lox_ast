@@ -8,7 +8,7 @@ mod tools;
 use error::loxerrorhandler::LoxErrorHandler;
 use lexer::scanner::*;
 use parser::rdp::Parser;
-use runtime::interpreter::Interpreter;
+use runtime::{interpreter::Interpreter, resolver::Resolver};
 use std::{fs, io, process};
 
 pub struct Lox {
@@ -28,11 +28,14 @@ impl Lox {
 
     pub fn run(&mut self, file: &str) {
         let mut scanner = Scanner::new(file, &self.error);
+        let resolver = Resolver::new(&self.interpreter);
         if let Ok(tokens) = scanner.scan_tokens() {
             let mut parser = Parser::new(tokens);
 
             if let Ok(stmts) = parser.parse() {
-                if let Err(_err) = self.interpreter.interpret(stmts) {};
+                if let Ok(()) = resolver.resolve(&stmts) {
+                    if let Err(_err) = self.interpreter.interpret(stmts) {};
+                }
             }
         }
     }

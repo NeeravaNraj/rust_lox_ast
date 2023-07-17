@@ -18,7 +18,7 @@ pub struct Resolver<'a> {
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(interpreter: &Interpreter) -> Self {
+    pub fn new(interpreter: &'a Interpreter) -> Self {
         Self {
             interpreter,
             scopes: RefCell::new(Vec::new()),
@@ -53,7 +53,7 @@ impl<'a> Resolver<'a> {
         self.scopes.borrow_mut().pop();
     }
 
-    fn resolve(&self, statements: &Vec<Rc<Stmt>>) -> Result<(), LoxResult> {
+    pub fn resolve(&self, statements: &Vec<Rc<Stmt>>) -> Result<(), LoxResult> {
         for statement in statements {
             self.resolve_statement(statement.clone())?;
         }
@@ -264,8 +264,8 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
     fn visit_if_stmt(&self, wrapper: Rc<Stmt>, stmt: &IfStmt, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(stmt.condition.clone())?;
         self.resolve_statement(stmt.then_branch.clone())?;
-        if let Some(else_branch) = stmt.else_branch {
-            self.resolve_statement(else_branch)?;
+        if let Some(else_branch) = &stmt.else_branch {
+            self.resolve_statement(else_branch.clone())?;
         }
 
         Ok(())
@@ -282,13 +282,13 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
     }
 
     fn visit_for_stmt(&self, wrapper: Rc<Stmt>, stmt: &ForStmt, _: u16) -> Result<(), LoxResult> {
-        if let Some(var) = stmt.var {
+        if let Some(var) = &stmt.var {
             self.resolve_statement(var.clone())?;
         }
-        if let Some(condition) = stmt.condition {
+        if let Some(condition) = &stmt.condition {
             self.resolve_expr(condition.clone())?;
         }
-        if let Some(expr) = stmt.update_expr {
+        if let Some(expr) = &stmt.update_expr {
             self.resolve_expr(expr.clone())?;
         }
 

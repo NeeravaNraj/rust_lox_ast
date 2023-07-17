@@ -87,6 +87,10 @@ impl Environment {
         ))
     }
 
+    pub fn mutate_at(&self, distance: usize, name: &Token, val: Literal) -> Result<(), LoxResult> {
+        self.ancestor(distance).mutate(name, val)
+    }
+
     pub fn get(&self, name: &Token) -> Result<Literal, LoxResult> {
         if let Some(literal) = self.env.get(name.lexeme.as_str()) {
             return Ok(literal.clone());
@@ -97,5 +101,18 @@ impl Environment {
             name,
             LoxErrorsTypes::Runtime("Undefined variable".to_string()),
         ))
+    }
+
+    pub fn get_at(&self, distance: usize, name: &Token) -> Result<Literal, LoxResult> {
+        self.ancestor(distance).get(name)
+    }
+
+    fn ancestor(&self, distance: usize) -> Self {
+        let mut env = self.clone();
+        for _ in 0..distance {
+            let b_env = env.enclosing.as_ref().unwrap().borrow().clone();
+            env = b_env;
+        }
+        env
     }
 }
