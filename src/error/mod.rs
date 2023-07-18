@@ -1,4 +1,5 @@
 pub mod loxerrorhandler;
+pub mod loxwarninghandler;
 
 use crate::lexer::{literal::Literal, token::Token};
 
@@ -34,7 +35,9 @@ impl LoxErrorsTypes {
             LoxErrorsTypes::Runtime(_) => LoxErrorsTypes::Runtime("".to_string()).to_string(),
             LoxErrorsTypes::Type(_) => LoxErrorsTypes::Type("".to_string()).to_string(),
             LoxErrorsTypes::System(_) => LoxErrorsTypes::System("".to_string()).to_string(),
-            LoxErrorsTypes::ReferenceError(_) => LoxErrorsTypes::ReferenceError("".to_string()).to_string(),
+            LoxErrorsTypes::ReferenceError(_) => {
+                LoxErrorsTypes::ReferenceError("".to_string()).to_string()
+            }
         }
     }
 }
@@ -54,14 +57,49 @@ impl ToString for LoxErrorsTypes {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum LoxWarningTypes {}
+pub enum LoxWarningTypes {
+    UnusedVariable(String),
+}
+
+impl LoxWarningTypes {
+    fn get_warning_message(warn_type: &LoxWarningTypes) -> String {
+        match warn_type {
+            LoxWarningTypes::UnusedVariable(string) => string.to_string()
+        }
+    }
+
+    fn confirm_warning_type(warn_type: &LoxWarningTypes) -> String {
+        match warn_type {
+            LoxWarningTypes::UnusedVariable(_) => LoxWarningTypes::UnusedVariable("".to_string()).to_string()
+        }
+    }
+}
+
+impl ToString for LoxWarningTypes {
+    fn to_string(&self) -> String {
+        match self {
+            LoxWarningTypes::UnusedVariable(_) => "UnusedVariable".to_string()
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct LoxWarning {
     pub has_warning: bool,
     pub warning_type: LoxWarningTypes,
-    pub warning_message: String,
     pub line: i32,
+    pub token: Option<Token>,
+}
+
+impl LoxWarning {
+    pub fn new(token: Option<Token>, w_type: LoxWarningTypes, line: i32, hw: bool) -> Self {
+        Self {
+            token,
+            has_warning: hw,
+            warning_type: w_type,
+            line,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -107,6 +145,5 @@ pub enum LoxResult {
     Error(LoxError),
     Warning(LoxWarning),
     Break,
-    Continue,
     Return(Literal),
 }

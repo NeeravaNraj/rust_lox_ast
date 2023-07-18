@@ -29,11 +29,20 @@ impl LoxErrorHandler {
 
     pub fn report(&self, error: &LoxError) {
         eprintln!(
-            "[Lox] line:{} {}: {} {}",
+            "[Lox] Error line:{} {}: {} {}",
             error.line,
             LoxErrorsTypes::confirm_error_type(&error.error_type),
             LoxErrorsTypes::get_error_message(&error.error_type),
             self.get_location(error),
+        );
+    }
+
+    pub fn report_asc(token: &Token, error: &LoxErrorsTypes) {
+        eprintln!(
+            "[Lox] Error line:{} {}: {}",
+            token.line,
+            LoxErrorsTypes::confirm_error_type(error),
+            LoxErrorsTypes::get_error_message(error),
         );
     }
 

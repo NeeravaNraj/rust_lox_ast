@@ -105,7 +105,7 @@ impl Interpreter {
 
         Err(self.error_handler.error(
             operator,
-            LoxErrorsTypes::Syntax(format!("Operant must be a {}", err_type)),
+            LoxErrorsTypes::Type(format!("Operand must be of type {}", err_type)),
         ))
     }
 
@@ -276,7 +276,6 @@ impl Interpreter {
         enclosing: Environment,
     ) -> Result<(), LoxResult> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
-        self.environment.borrow_mut().borrow_mut().loop_started = prev.borrow().loop_started;
         for stmt in stmts {
             if self.environment.borrow().borrow().continue_encountered {
                 prev.borrow_mut().continue_encountered =
@@ -373,15 +372,6 @@ impl VisitorExpr<Literal> for Interpreter {
         expr: &VariableExpr,
         _: u16,
     ) -> Result<Literal, LoxResult> {
-        // let val = self.environment.borrow().borrow().get(&expr.name)?;
-        // if val == Literal::LiteralNone {
-        //     return Err(self.error_handler.error(
-        //         &expr.name,
-        //         LoxErrorsTypes::Runtime("Undefined variable".to_string()),
-        //     ));
-        // }
-
-        // Ok(val)
         self.look_up_variable(&expr.name, &wrapper)
     }
 
@@ -632,7 +622,6 @@ impl VisitorStmt<()> for Interpreter {
     }
 
     fn visit_while_stmt(&self, _: Rc<Stmt>, stmt: &WhileStmt, _: u16) -> Result<(), LoxResult> {
-        self.environment.borrow().borrow_mut().loop_started = true;
         while self.is_truthy(&self.evaluate(stmt.condition.clone())?) {
             if let Err(e) = self.execute(stmt.body.clone()) {
                 match e {
@@ -648,30 +637,18 @@ impl VisitorStmt<()> for Interpreter {
         Ok(())
     }
 
-    fn visit_break_stmt(&self, _: Rc<Stmt>, stmt: &BreakStmt, _: u16) -> Result<(), LoxResult> {
-        if self.environment.borrow().borrow().loop_started {
-            return Err(LoxResult::Break);
-        }
-        Err(self.error_handler.error(
-            &stmt.token,
-            LoxErrorsTypes::Runtime("Found 'break' outside loop block".to_string()),
-        ))
+    fn visit_break_stmt(&self, _: Rc<Stmt>, _: &BreakStmt, _: u16) -> Result<(), LoxResult> {
+        Err(LoxResult::Break)
     }
 
     fn visit_continue_stmt(
         &self,
         _: Rc<Stmt>,
-        stmt: &ContinueStmt,
+        _: &ContinueStmt,
         _: u16,
     ) -> Result<(), LoxResult> {
-        if self.environment.borrow().borrow().loop_started {
-            self.environment.borrow().borrow_mut().continue_encountered = true;
-            return Ok(());
-        }
-        Err(self.error_handler.error(
-            &stmt.token,
-            LoxErrorsTypes::Runtime("Found 'continue' outside loop block".to_string()),
-        ))
+        self.environment.borrow().borrow_mut().continue_encountered = true;
+        Ok(())
     }
 
     fn visit_function_stmt(
@@ -701,13 +678,11 @@ impl VisitorStmt<()> for Interpreter {
         }
 
         if stmt.condition.is_some() {
-            self.environment.borrow().borrow_mut().loop_started = true;
             while self.is_truthy(&self.evaluate(stmt.condition.as_ref().unwrap().clone())?) {
                 if let Err(e) = self.execute(stmt.body.clone()) {
                     match e {
                         LoxResult::Error(error) => return Err(LoxResult::Error(error)),
                         LoxResult::Break => break,
-                        LoxResult::Continue => {}
                         _ => {}
                     }
                 }
@@ -722,13 +697,11 @@ impl VisitorStmt<()> for Interpreter {
                 }
             }
         } else {
-            self.environment.borrow().borrow_mut().loop_started = true;
             loop {
                 if let Err(e) = self.execute(stmt.body.clone()) {
                     match e {
                         LoxResult::Error(error) => return Err(LoxResult::Error(error)),
                         LoxResult::Break => break,
-                        LoxResult::Continue => {}
                         _ => {}
                     }
                 }

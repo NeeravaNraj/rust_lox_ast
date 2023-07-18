@@ -7,7 +7,6 @@ use crate::{
 };
 #[derive(Clone)]
 pub struct Environment {
-    pub loop_started: bool,
     pub continue_encountered: bool,
     pub id: usize,
     env: HashMap<String, Literal>,
@@ -22,7 +21,6 @@ impl Environment {
             env: HashMap::new(),
             error_handler: LoxErrorHandler::new(),
             enclosing: None,
-            loop_started: false,
             continue_encountered: false,
             natives: HashMap::new(),
             id: 0,
@@ -36,7 +34,6 @@ impl Environment {
             error_handler: LoxErrorHandler::new(),
             enclosing: Some(env),
             continue_encountered: false,
-            loop_started: false,
             natives: HashMap::new(),
             id,
         }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::{
-    error::{loxerrorhandler::LoxErrorHandler, *},
+    error::{loxerrorhandler::LoxErrorHandler, *, loxwarninghandler::LoxWarningHandler},
     lexer::token::Token,
     parser::expr::*,
     parser::stmt::*,
@@ -11,10 +11,39 @@ use crate::{
 
 use super::interpreter::Interpreter;
 
+#[derive(PartialEq)]
+enum FnType {
+    None,
+    Function,
+}
+
+#[derive(PartialEq)]
+enum LoopType {
+    None,
+    Loop,
+}
+
+#[derive(PartialEq)]
+struct VariableType {
+    token: Token,
+    define: bool,
+    used: bool,
+}
+
+impl VariableType {
+    fn new(tok: Token, d: bool, u: bool) -> Self {
+        Self { token: tok, define: d, used: u }
+    }
+}
+
 pub struct Resolver<'a> {
+    pub had_error: RefCell<bool>,
     interpreter: &'a Interpreter,
-    scopes: RefCell<Vec<RefCell<HashMap<String, bool>>>>,
+    scopes: RefCell<Vec<RefCell<HashMap<String, VariableType>>>>,
     error_handler: LoxErrorHandler,
+    warning_handler: LoxWarningHandler,
+    current_fn: RefCell<FnType>,
+    current_loop: RefCell<LoopType>,
 }
 
 impl<'a> Resolver<'a> {
@@ -23,6 +52,10 @@ impl<'a> Resolver<'a> {
             interpreter,
             scopes: RefCell::new(Vec::new()),
             error_handler: LoxErrorHandler::new(),
+            current_fn: RefCell::new(FnType::None),
+            current_loop: RefCell::new(LoopType::None),
+            had_error: RefCell::new(false),
+            warning_handler: LoxWarningHandler::new()
         }
     }
 
@@ -30,14 +63,16 @@ impl<'a> Resolver<'a> {
         statement.accept(statement.clone(), self, 0_u16)
     }
 
-    fn resolve_function(&self, function: &FunctionStmt) -> Result<(), LoxResult> {
+    fn resolve_function(&self, function: &FunctionStmt, fn_type: FnType) -> Result<(), LoxResult> {
+        let enclosing_fn = self.current_fn.replace(fn_type);
         self.begin_scope();
         for param in function.params.iter() {
             self.declare(param);
             self.define(param);
         }
-        self.resolve(&function.body);
+        self.resolve(&function.body)?;
         self.end_scope();
+        self.current_fn.replace(enclosing_fn);
         Ok(())
     }
 
@@ -57,6 +92,16 @@ impl<'a> Resolver<'a> {
         for statement in statements {
             self.resolve_statement(statement.clone())?;
         }
+        for scope in self.scopes.borrow().iter() {
+            for var in scope.borrow().values() {
+                if !var.used {
+                    self.warning_handler.warn(
+                        &var.token, 
+                        LoxWarningTypes::UnusedVariable("Unused variable".to_string())
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
@@ -65,12 +110,28 @@ impl<'a> Resolver<'a> {
             return;
         }
 
+        if self
+            .scopes
+            .borrow()
+            .last()
+            .unwrap()
+            .borrow()
+            .contains_key(&name.lexeme)
+        {
+            LoxErrorHandler::report_asc(
+                name,
+                &LoxErrorsTypes::Parse(
+                    "Already a variable with this name in this scope".to_string(),
+                ),
+            );
+            return;
+        }
         self.scopes
             .borrow()
             .last()
             .unwrap()
             .borrow_mut()
-            .insert(name.lexeme.to_string(), false);
+            .insert(name.lexeme.to_string(), VariableType::new(name.dup(), false, false));
     }
 
     fn define(&self, name: &Token) {
@@ -83,7 +144,7 @@ impl<'a> Resolver<'a> {
             .last()
             .unwrap()
             .borrow_mut()
-            .insert(name.lexeme.to_string(), true);
+            .insert(name.lexeme.to_string(), VariableType::new(name.dup(), true, false));
     }
 
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
@@ -98,35 +159,20 @@ impl<'a> Resolver<'a> {
 }
 
 impl<'a> VisitorExpr<()> for Resolver<'a> {
-    fn visit_index_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &IndexExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_index_expr(&self, _: Rc<Expr>, expr: &IndexExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.identifier.clone())?;
         self.resolve_expr(expr.index.clone())?;
         Ok(())
     }
 
-    fn visit_array_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &ArrayExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_array_expr(&self, _: Rc<Expr>, expr: &ArrayExpr, _: u16) -> Result<(), LoxResult> {
         for el in expr.arr.iter() {
             self.resolve_expr(el.clone())?;
         }
         Ok(())
     }
 
-    fn visit_call_expr(
-        &self, 
-        wrapper: Rc<Expr>, 
-        expr: &CallExpr,
-        _: u16
-    ) -> Result<(), LoxResult> {
+    fn visit_call_expr(&self, _: Rc<Expr>, expr: &CallExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.callee.clone())?;
 
         for arg in expr.args.iter() {
@@ -136,22 +182,12 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_unary_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &UnaryExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_unary_expr(&self, _: Rc<Expr>, expr: &UnaryExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.right.clone())?;
         Ok(())
     }
 
-    fn visit_binary_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &BinaryExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_binary_expr(&self, _: Rc<Expr>, expr: &BinaryExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.left.clone())?;
         self.resolve_expr(expr.right.clone())?;
         Ok(())
@@ -168,51 +204,31 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_lambda_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &LambdaExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_lambda_expr(&self, _: Rc<Expr>, expr: &LambdaExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve(&*expr.body)?;
         Ok(())
     }
 
-    fn visit_logical_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &LogicalExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_logical_expr(&self, _: Rc<Expr>, expr: &LogicalExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.left.clone())?;
         self.resolve_expr(expr.right.clone())?;
         Ok(())
     }
 
-    fn visit_literal_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &LiteralExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_literal_expr(&self, _: Rc<Expr>, _: &LiteralExpr, _: u16) -> Result<(), LoxResult> {
         Ok(())
     }
 
-    fn visit_ternary_expr(
-        &self,
-        wrapper: Rc<Expr>,
-        expr: &TernaryExpr,
-        _: u16,
-    ) -> Result<(), LoxResult> {
-        self.resolve_expr(expr.left.clone());
-        self.resolve_expr(expr.middle.clone());
-        self.resolve_expr(expr.right.clone());
+    fn visit_ternary_expr(&self, _: Rc<Expr>, expr: &TernaryExpr, _: u16) -> Result<(), LoxResult> {
+        self.resolve_expr(expr.left.clone())?;
+        self.resolve_expr(expr.middle.clone())?;
+        self.resolve_expr(expr.right.clone())?;
         Ok(())
     }
 
     fn visit_grouping_expr(
         &self,
-        wrapper: Rc<Expr>,
+        _: Rc<Expr>,
         expr: &GroupingExpr,
         _: u16,
     ) -> Result<(), LoxResult> {
@@ -226,22 +242,32 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         expr: &VariableExpr,
         _: u16,
     ) -> Result<(), LoxResult> {
-        if !self.scopes.borrow().is_empty()
-            && self
+        if !self.scopes.borrow().is_empty() {
+            if let Some(v_type) = self
                 .scopes
                 .borrow()
                 .last()
                 .unwrap()
                 .borrow()
                 .get(&expr.name.lexeme)
-                == Some(&false)
-        {
-            return Err(self.error_handler.error(
-                &expr.name,
-                LoxErrorsTypes::ReferenceError(
-                    "Can't read local variable in its own initializer".to_string(),
-                ),
-            ));
+            {
+                if !v_type.define {
+                    return Err(self.error_handler.error(
+                        &expr.name,
+                        LoxErrorsTypes::ReferenceError(
+                            "Can't read local variable in its own initializer".to_string(),
+                        ),
+                    ));
+                }
+            }
+            self.scopes
+                .borrow()
+                .last()
+                .unwrap()
+                .borrow_mut()
+                .get_mut(&expr.name.lexeme)
+                .unwrap()
+                .used = true;
         }
 
         self.resolve_local(wrapper.clone(), &expr.name);
@@ -261,7 +287,7 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
 }
 
 impl<'a> VisitorStmt<()> for Resolver<'a> {
-    fn visit_if_stmt(&self, wrapper: Rc<Stmt>, stmt: &IfStmt, _: u16) -> Result<(), LoxResult> {
+    fn visit_if_stmt(&self, _: Rc<Stmt>, stmt: &IfStmt, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(stmt.condition.clone())?;
         self.resolve_statement(stmt.then_branch.clone())?;
         if let Some(else_branch) = &stmt.else_branch {
@@ -271,17 +297,17 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_let_stmt(&self, wrapper: Rc<Stmt>, stmt: &LetStmt, _: u16) -> Result<(), LoxResult> {
+    fn visit_let_stmt(&self, _: Rc<Stmt>, stmt: &LetStmt, _: u16) -> Result<(), LoxResult> {
         self.declare(&stmt.name);
 
         if let Some(init) = &stmt.initializer {
-            self.resolve_expr(init.clone());
+            self.resolve_expr(init.clone())?;
         }
         self.define(&stmt.name);
         Ok(())
     }
 
-    fn visit_for_stmt(&self, wrapper: Rc<Stmt>, stmt: &ForStmt, _: u16) -> Result<(), LoxResult> {
+    fn visit_for_stmt(&self, _: Rc<Stmt>, stmt: &ForStmt, _: u16) -> Result<(), LoxResult> {
         if let Some(var) = &stmt.var {
             self.resolve_statement(var.clone())?;
         }
@@ -292,87 +318,87 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
             self.resolve_expr(expr.clone())?;
         }
 
+        let old = self.current_loop.replace(LoopType::Loop);
         self.resolve_statement(stmt.body.clone())?;
+        self.current_loop.replace(old);
         Ok(())
     }
 
-    fn visit_print_stmt(
-        &self,
-        wrapper: Rc<Stmt>,
-        stmt: &PrintStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_print_stmt(&self, _: Rc<Stmt>, stmt: &PrintStmt, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(stmt.expr.clone())?;
         Ok(())
     }
 
-    fn visit_block_stmt(
-        &self,
-        wrapper: Rc<Stmt>,
-        stmt: &BlockStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_block_stmt(&self, _: Rc<Stmt>, stmt: &BlockStmt, _: u16) -> Result<(), LoxResult> {
         self.begin_scope();
         self.resolve(&stmt.statements)?;
         self.end_scope();
         Ok(())
     }
 
-    fn visit_while_stmt(
-        &self,
-        wrapper: Rc<Stmt>,
-        stmt: &WhileStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_while_stmt(&self, _: Rc<Stmt>, stmt: &WhileStmt, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(stmt.condition.clone())?;
+        let old = self.current_loop.replace(LoopType::Loop);
         self.resolve_statement(stmt.body.clone())?;
+        self.current_loop.replace(old);
         Ok(())
     }
 
-    fn visit_break_stmt(
-        &self,
-        wrapper: Rc<Stmt>,
-        stmt: &BreakStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_break_stmt(&self, _: Rc<Stmt>, stmt: &BreakStmt, _: u16) -> Result<(), LoxResult> {
+        if self.current_loop.borrow().eq(&LoopType::None) {
+            self.had_error.replace(true);
+            self.error_handler.error(
+                &stmt.token,
+                LoxErrorsTypes::Parse("Found 'break' outside loop body".to_string()),
+            );
+        }
         Ok(())
     }
 
-    fn visit_return_stmt(
-        &self,
-        wrapper: Rc<Stmt>,
-        stmt: &ReturnStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_return_stmt(&self, _: Rc<Stmt>, stmt: &ReturnStmt, _: u16) -> Result<(), LoxResult> {
+        if self.current_fn.borrow().eq(&FnType::None) {
+            self.had_error.replace(true);
+            self.error_handler.error(
+                &stmt.keyword,
+                LoxErrorsTypes::Parse("Unexpected return outside function".to_string()),
+            );
+        }
         self.resolve_expr(stmt.value.clone())?;
         Ok(())
     }
 
     fn visit_continue_stmt(
         &self,
-        wrapper: Rc<Stmt>,
+        _: Rc<Stmt>,
         stmt: &ContinueStmt,
         _: u16,
     ) -> Result<(), LoxResult> {
+        if self.current_loop.borrow().eq(&LoopType::None) {
+            self.had_error.replace(true);
+            self.error_handler.error(
+                &stmt.token,
+                LoxErrorsTypes::Parse("Found 'continue' outside loop body".to_string()),
+            );
+        }
         Ok(())
     }
 
     fn visit_function_stmt(
         &self,
-        wrapper: Rc<Stmt>,
+        _: Rc<Stmt>,
         stmt: &FunctionStmt,
         _: u16,
     ) -> Result<(), LoxResult> {
         self.declare(&stmt.name);
         self.define(&stmt.name);
 
-        self.resolve_function(stmt);
+        self.resolve_function(stmt, FnType::Function)?;
         Ok(())
     }
 
     fn visit_expression_stmt(
         &self,
-        wrapper: Rc<Stmt>,
+        _: Rc<Stmt>,
         stmt: &ExpressionStmt,
         _: u16,
     ) -> Result<(), LoxResult> {

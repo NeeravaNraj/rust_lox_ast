@@ -34,7 +34,9 @@ impl Lox {
 
             if let Ok(stmts) = parser.parse() {
                 if let Ok(()) = resolver.resolve(&stmts) {
-                    if let Err(_err) = self.interpreter.interpret(stmts) {};
+                    if resolver.had_error.borrow().eq(&false) {
+                        if let Err(_err) = self.interpreter.interpret(stmts) {};
+                    }
                 }
             }
         }

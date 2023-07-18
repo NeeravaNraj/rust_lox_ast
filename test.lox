@@ -1,11 +1,5 @@
-let a = "global";
-{
-    fn showA() {
-        print a;
-    }
-
-    showA();
-
-    let a = "block";
-    showA();
+fn s() {
+    return false;
 }
+
+print -s();
