@@ -37,14 +37,14 @@ impl LoxWarningHandler {
         );
     }
 
-    pub fn report_asc(token: &Token, warning: &LoxWarningTypes) {
-        println!(
-            "[Lox] Warning line:{} {}: {}",
-            token.line,
-            LoxWarningTypes::confirm_warning_type(warning),
-            LoxWarningTypes::get_warning_message(warning),
-        );
-    }
+    // pub fn report_asc(token: &Token, warning: &LoxWarningTypes) {
+    //     println!(
+    //         "[Lox] Warning line:{} {}: {}",
+    //         token.line,
+    //         LoxWarningTypes::confirm_warning_type(warning),
+    //         LoxWarningTypes::get_warning_message(warning),
+    //     );
+    // }
 
     fn get_location(&self, warning: &LoxWarning) -> String {
         match warning.token.as_ref() {

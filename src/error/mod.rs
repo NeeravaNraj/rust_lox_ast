@@ -59,18 +59,21 @@ impl ToString for LoxErrorsTypes {
 #[derive(Debug, PartialEq)]
 pub enum LoxWarningTypes {
     UnusedVariable(String),
+    DeadCode(String),
 }
 
 impl LoxWarningTypes {
     fn get_warning_message(warn_type: &LoxWarningTypes) -> String {
         match warn_type {
-            LoxWarningTypes::UnusedVariable(string) => string.to_string()
+            LoxWarningTypes::UnusedVariable(string) => string.to_string(),
+            LoxWarningTypes::DeadCode(string) => string.to_string(),
         }
     }
 
     fn confirm_warning_type(warn_type: &LoxWarningTypes) -> String {
         match warn_type {
-            LoxWarningTypes::UnusedVariable(_) => LoxWarningTypes::UnusedVariable("".to_string()).to_string()
+            LoxWarningTypes::UnusedVariable(_) => LoxWarningTypes::UnusedVariable("".to_string()).to_string(),
+            LoxWarningTypes::DeadCode(_) => LoxWarningTypes::DeadCode("".to_string()).to_string(),
         }
     }
 }
@@ -78,7 +81,8 @@ impl LoxWarningTypes {
 impl ToString for LoxWarningTypes {
     fn to_string(&self) -> String {
         match self {
-            LoxWarningTypes::UnusedVariable(_) => "UnusedVariable".to_string()
+            LoxWarningTypes::UnusedVariable(_) => "UnusedVariable".to_string(),
+            LoxWarningTypes::DeadCode(_) => "DeadCode".to_string(),
         }
     }
 }

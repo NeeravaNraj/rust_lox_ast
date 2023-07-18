@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::{
-    error::{loxerrorhandler::LoxErrorHandler, *, loxwarninghandler::LoxWarningHandler},
+    error::{loxerrorhandler::LoxErrorHandler, loxwarninghandler::LoxWarningHandler, *},
     lexer::token::Token,
     parser::expr::*,
     parser::stmt::*,
@@ -30,9 +30,18 @@ struct VariableType {
     used: bool,
 }
 
+#[derive(PartialEq)]
+enum Returned {
+    None,
+    Return(i32),
+}
 impl VariableType {
     fn new(tok: Token, d: bool, u: bool) -> Self {
-        Self { token: tok, define: d, used: u }
+        Self {
+            token: tok,
+            define: d,
+            used: u,
+        }
     }
 }
 
@@ -44,6 +53,7 @@ pub struct Resolver<'a> {
     warning_handler: LoxWarningHandler,
     current_fn: RefCell<FnType>,
     current_loop: RefCell<LoopType>,
+    returned: RefCell<Returned>,
 }
 
 impl<'a> Resolver<'a> {
@@ -53,9 +63,10 @@ impl<'a> Resolver<'a> {
             scopes: RefCell::new(Vec::new()),
             error_handler: LoxErrorHandler::new(),
             current_fn: RefCell::new(FnType::None),
+            returned: RefCell::new(Returned::None),
             current_loop: RefCell::new(LoopType::None),
             had_error: RefCell::new(false),
-            warning_handler: LoxWarningHandler::new()
+            warning_handler: LoxWarningHandler::new(),
         }
     }
 
@@ -70,7 +81,28 @@ impl<'a> Resolver<'a> {
             self.declare(param);
             self.define(param);
         }
-        self.resolve(&function.body)?;
+        // self.resolve(&function.body)?;
+        for s in function.body.iter() {
+            if self.current_fn.borrow().eq(&FnType::Function) {
+                unsafe {
+                    match *self.returned.as_ptr() {
+                        Returned::Return(line) => {
+                            self.warning_handler.simple_warning(
+                                line + 1,
+                                LoxWarningTypes::DeadCode(format!(
+                                    "Found unreachable code after line '{}' in function '{}'",
+                                    line + 1,
+                                    function.name.lexeme
+                                )),
+                            );
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            self.resolve_statement(s.clone())?;
+        }
         self.end_scope();
         self.current_fn.replace(enclosing_fn);
         Ok(())
@@ -96,8 +128,8 @@ impl<'a> Resolver<'a> {
             for var in scope.borrow().values() {
                 if !var.used {
                     self.warning_handler.warn(
-                        &var.token, 
-                        LoxWarningTypes::UnusedVariable("Unused variable".to_string())
+                        &var.token,
+                        LoxWarningTypes::UnusedVariable("Unused variable".to_string()),
                     );
                 }
             }
@@ -126,12 +158,10 @@ impl<'a> Resolver<'a> {
             );
             return;
         }
-        self.scopes
-            .borrow()
-            .last()
-            .unwrap()
-            .borrow_mut()
-            .insert(name.lexeme.to_string(), VariableType::new(name.dup(), false, false));
+        self.scopes.borrow().last().unwrap().borrow_mut().insert(
+            name.lexeme.to_string(),
+            VariableType::new(name.dup(), false, false),
+        );
     }
 
     fn define(&self, name: &Token) {
@@ -144,7 +174,10 @@ impl<'a> Resolver<'a> {
             .last()
             .unwrap()
             .borrow_mut()
-            .insert(name.lexeme.to_string(), VariableType::new(name.dup(), true, false));
+            .insert(
+                name.lexeme.to_string(),
+                VariableType::new(name.dup(), true, false),
+            );
     }
 
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
@@ -260,14 +293,11 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
                     ));
                 }
             }
-            self.scopes
-                .borrow()
-                .last()
-                .unwrap()
-                .borrow_mut()
-                .get_mut(&expr.name.lexeme)
-                .unwrap()
-                .used = true;
+            if let Some(map) = self.scopes.borrow().last() {
+                if let Some(val) = map.borrow_mut().get_mut(&expr.name.lexeme) {
+                    val.used = true;
+                }
+            }
         }
 
         self.resolve_local(wrapper.clone(), &expr.name);
@@ -333,6 +363,9 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         self.begin_scope();
         self.resolve(&stmt.statements)?;
         self.end_scope();
+        if self.current_fn.borrow().eq(&FnType::Function) {
+            self.returned.replace(Returned::None);
+        }
         Ok(())
     }
 
@@ -364,6 +397,7 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
             );
         }
         self.resolve_expr(stmt.value.clone())?;
+        self.returned.replace(Returned::Return(stmt.keyword.line));
         Ok(())
     }
 
