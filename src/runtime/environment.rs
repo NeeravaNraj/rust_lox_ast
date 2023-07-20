@@ -5,7 +5,7 @@ use crate::{
     lexer::literal::*,
     lexer::token::Token,
 };
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     pub continue_encountered: bool,
     pub id: usize,

@@ -1,14 +1,24 @@
-use crate::runtime::callable::*;
+use crate::runtime::loxfunction::LoxFunction;
+use crate::runtime::{
+    loxclass::LoxClass,
+    loxinstance::LoxInstance,
+};
+
+use crate::loxlib::loxnatives::*;
 use core::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::{Add, Div, Mul, Sub};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(f64),
     Str(String),
     Bool(bool),
-    Func(Callable),
+    Func(Rc<LoxFunction>),
+    Native(Rc<LoxNative>),
+    Class(Rc<LoxClass>),
+    Instance(Rc<LoxInstance>),
     Array(Vec<Literal>),
     None,
     LiteralNone,
@@ -24,6 +34,9 @@ impl Display for Literal {
             Self::Bool(bool) => write!(f, "{bool}"),
             Self::Func(_) => write!(f, "_Function_"),
             Self::Array(_) => write!(f, "Array []"),
+            Self::Class(c) => write!(f, "{c}",),
+            Self::Instance(i) => write!(f, "{i}"),
+            Self::Native(n)  => write!(f, "{n}"),
             Self::LiteralNone => write!(f, "_LiteralNone_"), // This none is for internal use only
         }
     }
@@ -85,6 +98,9 @@ impl Literal {
             Self::Bool(bool) => bool.to_string(),
             Self::None => String::from("none"),
             Self::Func(func) => func.to_string(),
+            Self::Class(class) => class.to_string(),
+            Self::Native(n) => n.to_string(),
+            Self::Instance(i) => i.to_string(),
             Self::Array(arr) => {
                 let mut str = "[".to_string();
                 let len = arr.len();
@@ -106,7 +122,10 @@ impl Literal {
             Self::Number(num) => println!("{num}"),
             Self::Str(str) => println!("{str}"),
             Self::Bool(bool) => println!("{bool}"),
-            Self::Func(func) => println!("{}", func.to_string()),
+            Self::Func(func) => println!("{func}"),
+            Self::Class(class) => println!("{class}"),
+            Self::Instance(i) => println!("{i}"),
+            Self::Native(n) => println!("{n}"),
             Self::Array(_) => println!("{}", self.get_value()),
             Self::None => println!("{}", self),
             Self::LiteralNone => println!("{}", Literal::None),
@@ -121,6 +140,9 @@ impl Literal {
             Self::None => Self::None,
             Self::Func(func) => Self::Func(func.clone()),
             Self::Array(arr) => Self::Array(arr.clone()),
+            Self::Class(class) => Self::Class(class.clone()),
+            Self::Instance(i) => Self::Instance(i.clone()),
+            Self::Native(n) => Self::Native(n.clone()),
             Self::LiteralNone => Self::LiteralNone,
         }
     }

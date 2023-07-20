@@ -92,6 +92,7 @@ impl GenAst {
     }
 
     fn define_enum(f: &mut File, types: &Vec<String>, basename: &String) -> std::io::Result<()> {
+        write!(f, "#[derive(Debug, Clone)]")?;
         writeln!(f, "pub enum {} {{", basename)?;
         for t in types {
             let type_split: Vec<&str> = t.split(';').collect();
@@ -116,6 +117,7 @@ impl GenAst {
         type_fields: &str,
         basename: &String,
     ) -> std::io::Result<()> {
+        write!(f, "#[derive(Debug, Clone, PartialEq)]")?;
         writeln!(f, "pub struct {}{} {{", type_name, basename)?;
         let fields: Vec<&str> = type_fields.split(", ").collect();
         for field in &fields {

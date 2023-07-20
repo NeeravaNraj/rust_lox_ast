@@ -2,6 +2,7 @@ use super::{callable::LoxCallable, environment::Environment, interpreter::Interp
 use crate::{error::*, lexer::literal::Literal, lexer::token::*, parser::{stmt::*, expr::LambdaExpr}};
 use std::{fmt::Display, rc::Rc, cell::RefCell};
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct LoxFunction {
     name: Option<Token>,
     params: Rc<Vec<Token>>,
@@ -34,7 +35,7 @@ impl Display for LoxFunction {
         if self.name.is_some() {
             return write!(f, "<Fn {}>", self.name.as_ref().unwrap().lexeme)
         } 
-        write!(f, "<Lamba>")
+        write!(f, "<Fn Lamba>")
     }
 }
 
@@ -59,10 +60,10 @@ impl LoxCallable for LoxFunction {
         self.params.len()
     }
 
-    fn to_string(&self) -> String {
-        if self.name.is_some() {
-            return format!("<Fn {}>", self.name.as_ref().unwrap().lexeme)
-        }
-        String::from("<Lambda>")
-    }
+    // fn to_string(&self) -> String {
+    //     if self.name.is_some() {
+    //         return format!("<Fn {}>", self.name.as_ref().unwrap().lexeme)
+    //     }
+    //     String::from("<Lambda>")
+    // }
 }

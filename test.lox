@@ -1,12 +1,7 @@
-fn test(param) {
-    let a = 0;
-    let b = 0;
-    let c = 0;
-    let d = 0;
-    if (param) return true;
-    return false;
-    leat;
-    adwawdawd;
+class Bread {
+    eat() {
+        print "Crunch crunch crunch!";
+    }
 }
 
-print test(true);
+Bread().eat();

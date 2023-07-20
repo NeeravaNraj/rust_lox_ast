@@ -9,7 +9,6 @@ use crate::{error::*, lexer::literal::Literal};
 pub trait LoxCallable {
     fn arity(&self) -> usize;
     fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult>;
-    fn to_string(&self) -> String;
 }
 
 #[derive(Clone)]
@@ -24,10 +23,6 @@ impl LoxCallable for Callable {
 
     fn arity(&self) -> usize {
         self.func.arity()
-    }
-
-    fn to_string(&self) -> String {
-        self.func.to_string()
     }
 }
 
@@ -49,5 +44,11 @@ impl PartialEq for Callable {
 impl Display for dyn LoxCallable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
+    }
+}
+
+impl Display for Callable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.func.to_string())
     }
 }

@@ -2,7 +2,7 @@ use crate::lexer::{token::Token, tokentype::TokenType};
 
 use super::{LoxError, LoxErrorsTypes, LoxResult};
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct LoxErrorHandler;
 
 impl LoxErrorHandler {

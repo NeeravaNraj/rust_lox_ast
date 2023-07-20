@@ -1,12 +1,13 @@
 use super::{
     callable::{Callable, LoxCallable},
     environment::Environment,
+    loxclass::LoxClass,
     loxfunction::LoxFunction,
 };
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
     lexer::{literal::*, token::*, tokentype::TokenType},
-    loxlib::loxnatives::Clock,
+    loxlib::{loxnatives::Clock, loxnatives::LoxNative},
     parser::{expr::*, stmt::*},
 };
 use std::{
@@ -30,9 +31,7 @@ impl Interpreter {
 
         if let Err(LoxResult::Error(e)) = globals.borrow_mut().define_native(
             &Token::new(TokenType::DefFn, "clock".to_string(), None, 0),
-            Literal::Func(Callable {
-                func: Rc::new(Clock {}),
-            }),
+            Literal::Native(Rc::new(LoxNative::new("clock", Rc::new(Clock {})))),
         ) {
             LoxError::report(&e);
         }
@@ -383,7 +382,10 @@ impl VisitorExpr<Literal> for Interpreter {
     ) -> Result<Literal, LoxResult> {
         let value = self.evaluate(expr.value.clone())?;
         if let Some(dist) = self.locals.borrow().get(&wrapper) {
-            self.environment.borrow().borrow_mut().mutate_at(*dist, &expr.name, value.dup())?;
+            self.environment
+                .borrow()
+                .borrow_mut()
+                .mutate_at(*dist, &expr.name, value.dup())?;
         } else {
             self.globals.borrow_mut().mutate(&expr.name, value.dup())?;
         }
@@ -483,23 +485,50 @@ impl VisitorExpr<Literal> for Interpreter {
             args.push(self.evaluate(arg.clone())?);
         }
 
-        if let Literal::Func(func) = callee {
-            if args.len() != func.arity() {
-                return Err(self.error_handler.error(
-                    &expr.paren,
-                    LoxErrorsTypes::Runtime(format!(
-                        "Expected {} arguments but got {}",
-                        func.arity(),
-                        args.len()
-                    )),
-                ));
+        match callee {
+            Literal::Func(func) => {
+                if args.len() != func.arity() {
+                    return Err(self.error_handler.error(
+                        &expr.paren,
+                        LoxErrorsTypes::Runtime(format!(
+                            "Expected {} arguments but got {}",
+                            func.arity(),
+                            args.len()
+                        )),
+                    ));
+                }
+                func.call(self, args)
             }
-            func.call(self, args)
-        } else {
-            Err(self.error_handler.error(
+            Literal::Class(class) => {
+                if args.len() != class.arity() {
+                    return Err(self.error_handler.error(
+                        &expr.paren,
+                        LoxErrorsTypes::Runtime(format!(
+                            "Expected {} arguments but got {}",
+                            class.arity(),
+                            args.len()
+                        )),
+                    ));
+                }
+                class.call(self, args)
+            }
+            Literal::Native(func) => {
+                if args.len() != func.native.arity() {
+                    return Err(self.error_handler.error(
+                        &expr.paren,
+                        LoxErrorsTypes::Runtime(format!(
+                            "Expected {} arguments but got {}",
+                            func.native.arity(),
+                            args.len()
+                        )),
+                    ));
+                }
+                func.native.call(self, args)
+            },
+            _ => Err(self.error_handler.error(
                 &expr.paren,
                 LoxErrorsTypes::Runtime("Can only call functions and classes".to_string()),
-            ))
+            )),
         }
     }
 
@@ -510,9 +539,7 @@ impl VisitorExpr<Literal> for Interpreter {
         _: u16,
     ) -> Result<Literal, LoxResult> {
         let function = LoxFunction::new_lambda(expr, &self.environment.borrow());
-        Ok(Literal::Func(Callable {
-            func: Rc::new(function),
-        }))
+        Ok(Literal::Func(Rc::new(function)))
     }
 
     fn visit_array_expr(
@@ -568,6 +595,33 @@ impl VisitorExpr<Literal> for Interpreter {
                 &expr.bracket,
                 LoxErrorsTypes::Runtime("Can only index arrays".to_string()),
             ))
+        }
+    }
+
+    fn visit_get_expr(&self, _: Rc<Expr>, expr: &GetExpr, _: u16) -> Result<Literal, LoxResult> {
+        let object = self.evaluate(expr.object.clone())?;
+        match object {
+            Literal::Instance(i) => return Ok(i.get(&expr.name)?),
+            _ => Err(self.error_handler.error(
+                &expr.name,
+                LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
+            )),
+        }
+    }
+
+    fn visit_set_expr(&self, _: Rc<Expr>, expr: &SetExpr, _: u16) -> Result<Literal, LoxResult> {
+        let obj = self.evaluate(expr.object.clone())?;
+
+        match obj {
+            Literal::Instance(i) => {
+                let val = self.evaluate(expr.value.clone())?;
+                i.set(&expr.name, val.dup());
+                return Ok(val);
+            }
+            _ => Err(self.error_handler.error(
+                &expr.name,
+                LoxErrorsTypes::Runtime("Only instances have fields".to_string()),
+            )),
         }
     }
 }
@@ -641,12 +695,7 @@ impl VisitorStmt<()> for Interpreter {
         Err(LoxResult::Break)
     }
 
-    fn visit_continue_stmt(
-        &self,
-        _: Rc<Stmt>,
-        _: &ContinueStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_continue_stmt(&self, _: Rc<Stmt>, _: &ContinueStmt, _: u16) -> Result<(), LoxResult> {
         self.environment.borrow().borrow_mut().continue_encountered = true;
         Ok(())
     }
@@ -658,12 +707,10 @@ impl VisitorStmt<()> for Interpreter {
         _: u16,
     ) -> Result<(), LoxResult> {
         let function = LoxFunction::new(stmt, &self.environment.borrow());
-        self.environment.borrow_mut().borrow_mut().define(
-            &stmt.name,
-            Literal::Func(Callable {
-                func: Rc::new(function),
-            }),
-        )?;
+        self.environment
+            .borrow_mut()
+            .borrow_mut()
+            .define(&stmt.name, Literal::Func(Rc::new(function)))?;
         Ok(())
     }
 
@@ -717,6 +764,33 @@ impl VisitorStmt<()> for Interpreter {
             }
         }
 
+        Ok(())
+    }
+
+    fn visit_class_stmt(&self, _: Rc<Stmt>, stmt: &ClassStmt, _: u16) -> Result<(), LoxResult> {
+        self.environment
+            .borrow()
+            .borrow_mut()
+            .define(&stmt.name, Literal::None)?;
+        let mut methods: HashMap<String, Literal> = HashMap::new();
+        for m in stmt.methods.iter() {
+            match &**m {
+                Stmt::Function(f) => {
+                    let func = LoxFunction::new(&*f, &*self.environment.borrow());
+                    methods.insert(f.name.lexeme.to_string(), Literal::Func(Rc::new(func)));
+                }
+                _ => {
+                    return Err(LoxResult::Error(LoxError::system_error(
+                        "Unexpected statement parsed",
+                    )))
+                }
+            }
+        }
+        let klass = LoxClass::new(stmt.name.lexeme.as_str(), methods);
+        self.environment
+            .borrow()
+            .borrow_mut()
+            .mutate(&stmt.name, Literal::Class(Rc::new(klass)))?;
         Ok(())
     }
 }

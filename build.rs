@@ -17,6 +17,8 @@ fn main() -> io::Result<()> {
         "Lambda ; params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>".to_string(),
         "Array ; arr: Vec<Rc<Expr>>".to_string(),
         "Index ; identifier: Rc<Expr>, bracket: Token, index: Rc<Expr>".to_string(),
+        "Get ; object: Rc<Expr>, name: Token".to_string(),
+        "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>".to_string(),
     ];
 
     let expr_mods = vec![
@@ -39,6 +41,7 @@ fn main() -> io::Result<()> {
         "Continue ; token: Token".to_string(),
         "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>".to_string(),
         "Return ; keyword: Token, value: Rc<Expr>".to_string(),
+        "Class ; name: Token, methods: Vec<Rc<Stmt>>".to_string(),
     ];
 
     let stmt_mods = vec![

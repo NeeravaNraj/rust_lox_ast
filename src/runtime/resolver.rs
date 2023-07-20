@@ -15,6 +15,7 @@ use super::interpreter::Interpreter;
 enum FnType {
     None,
     Function,
+    Method,
 }
 
 #[derive(PartialEq)]
@@ -81,12 +82,13 @@ impl<'a> Resolver<'a> {
             self.declare(param);
             self.define(param);
         }
-        // self.resolve(&function.body)?;
-        for s in function.body.iter() {
-            if self.current_fn.borrow().eq(&FnType::Function) {
+        for (i, s) in function.body.iter().enumerate() {
+            if self.current_fn.borrow().eq(&FnType::Function)
+                || self.current_fn.borrow().eq(&FnType::Method)
+            {
                 unsafe {
                     match *self.returned.as_ptr() {
-                        Returned::Return(line) => {
+                        Returned::Return(line) if function.body.len() - 1 > i => {
                             self.warning_handler.simple_warning(
                                 line + 1,
                                 LoxWarningTypes::DeadCode(format!(
@@ -103,6 +105,7 @@ impl<'a> Resolver<'a> {
             }
             self.resolve_statement(s.clone())?;
         }
+        self.check_unused();
         self.end_scope();
         self.current_fn.replace(enclosing_fn);
         Ok(())
@@ -124,6 +127,11 @@ impl<'a> Resolver<'a> {
         for statement in statements {
             self.resolve_statement(statement.clone())?;
         }
+        self.check_unused();
+        Ok(())
+    }
+
+    fn check_unused(&self) {
         for scope in self.scopes.borrow().iter() {
             for var in scope.borrow().values() {
                 if !var.used {
@@ -134,9 +142,7 @@ impl<'a> Resolver<'a> {
                 }
             }
         }
-        Ok(())
     }
-
     fn declare(&self, name: &Token) {
         if self.scopes.borrow().is_empty() {
             return;
@@ -174,10 +180,9 @@ impl<'a> Resolver<'a> {
             .last()
             .unwrap()
             .borrow_mut()
-            .insert(
-                name.lexeme.to_string(),
-                VariableType::new(name.dup(), true, false),
-            );
+            .get_mut(&name.lexeme)
+            .unwrap()
+            .define = true;
     }
 
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
@@ -314,6 +319,17 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         self.resolve_local(wrapper.clone(), &expr.name);
         Ok(())
     }
+
+    fn visit_get_expr(&self, _: Rc<Expr>, expr: &GetExpr, _: u16) -> Result<(), LoxResult> {
+        self.resolve_expr(expr.object.clone())?;
+        Ok(())
+    }
+
+    fn visit_set_expr(&self, _: Rc<Expr>, expr: &SetExpr, _: u16) -> Result<(), LoxResult> {
+        self.resolve_expr(expr.value.clone())?;
+        self.resolve_expr(expr.object.clone())?;
+        Ok(())
+    }
 }
 
 impl<'a> VisitorStmt<()> for Resolver<'a> {
@@ -363,7 +379,9 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         self.begin_scope();
         self.resolve(&stmt.statements)?;
         self.end_scope();
-        if self.current_fn.borrow().eq(&FnType::Function) {
+        if self.current_fn.borrow().eq(&FnType::Function)
+            || self.current_fn.borrow().eq(&FnType::Method)
+        {
             self.returned.replace(Returned::None);
         }
         Ok(())
@@ -437,6 +455,23 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         _: u16,
     ) -> Result<(), LoxResult> {
         self.resolve_expr(stmt.expr.clone())?;
+        Ok(())
+    }
+
+    fn visit_class_stmt(&self, _: Rc<Stmt>, stmt: &ClassStmt, _: u16) -> Result<(), LoxResult> {
+        self.declare(&stmt.name);
+        self.define(&stmt.name);
+
+        for method in stmt.methods.iter() {
+            match &**method {
+                Stmt::Function(f) => self.resolve_function(&*f, FnType::Method)?,
+                _ => {
+                    return Err(LoxResult::Error(LoxError::system_error(
+                        "Unexpected statement parsed",
+                    )))
+                }
+            }
+        }
         Ok(())
     }
 }

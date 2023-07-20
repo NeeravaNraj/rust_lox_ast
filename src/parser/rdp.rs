@@ -173,7 +173,11 @@ impl<'a> Parser<'a> {
             alternative = Some(self.statement()?);
         }
 
-        Ok(Rc::new(Stmt::If(IfStmt::new(condition, then_branch, alternative))))
+        Ok(Rc::new(Stmt::If(IfStmt::new(
+            condition,
+            then_branch,
+            alternative,
+        ))))
     }
 
     fn while_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
@@ -276,6 +280,30 @@ impl<'a> Parser<'a> {
         Ok(Rc::new(Stmt::Return(ReturnStmt::new(keyword, value))))
     }
 
+    fn class_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
+        let name = self.consume(
+            TokenType::Identifier,
+            LoxErrorsTypes::Syntax("Expected identifier for class".to_string()),
+        )?;
+
+        self.consume(
+            TokenType::LeftBrace,
+            LoxErrorsTypes::Syntax("Expected '{' before class body".to_string()),
+        )?;
+
+        let mut methods: Vec<Rc<Stmt>> = Vec::new();
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            methods.push(self.function("method")?);
+        }
+
+        self.consume(
+            TokenType::RightBrace,
+            LoxErrorsTypes::Syntax("Expected '}' before class body".to_string()),
+        )?;
+
+        Ok(Rc::new(Stmt::Class(ClassStmt::new(name, methods))))
+    }
+
     fn statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         if self.match_single_token(TokenType::Print) {
             return self.print_statement();
@@ -307,6 +335,10 @@ impl<'a> Parser<'a> {
 
         if self.match_single_token(TokenType::Return) {
             return self.return_statement();
+        }
+
+        if self.match_single_token(TokenType::Class) {
+            return self.class_statement();
         }
         self.expr_statement()
     }
@@ -366,7 +398,7 @@ impl<'a> Parser<'a> {
 
     fn array_expr(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut elems = Vec::new();
-        
+
         if !self.check(TokenType::RightBracket) {
             elems.push(self.expression()?);
             while self.match_single_token(TokenType::Comma) {
@@ -375,8 +407,8 @@ impl<'a> Parser<'a> {
         }
 
         self.consume(
-            TokenType::RightBracket, 
-            LoxErrorsTypes::Syntax("Expected ']' after".to_string())
+            TokenType::RightBracket,
+            LoxErrorsTypes::Syntax("Expected ']' after".to_string()),
         )?;
 
         Ok(Rc::new(Expr::Array(ArrayExpr::new(elems))))
@@ -384,11 +416,15 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         if self.match_single_token(TokenType::False) {
-            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(false)))));
+            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(
+                false,
+            )))));
         }
 
         if self.match_single_token(TokenType::True) {
-            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(true)))));
+            return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Bool(
+                true,
+            )))));
         }
 
         if self.match_single_token(TokenType::None) {
@@ -402,7 +438,9 @@ impl<'a> Parser<'a> {
         if self.is_match(vec![TokenType::Number, TokenType::String]) {
             match self.previous().literal.as_ref().unwrap() {
                 Literal::Number(literal) => {
-                    return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Number(*literal)))))
+                    return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Number(
+                        *literal,
+                    )))))
                 }
                 Literal::Str(literal) => {
                     return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Str(
@@ -427,7 +465,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.match_single_token(TokenType::LeftBracket) {
-            return self.array_expr()
+            return self.array_expr();
         }
 
         if self.curr == 0 {
@@ -447,9 +485,9 @@ impl<'a> Parser<'a> {
         let mut args: Vec<Rc<Expr>> = Vec::new();
         if self.check(TokenType::Semicolon) {
             return Err(self.error_handler.error(
-                self.peek(), 
-                LoxErrorsTypes::Syntax("Expected ')' after".to_string())
-            ))
+                self.peek(),
+                LoxErrorsTypes::Syntax("Expected ')' after".to_string()),
+            ));
         }
         if !self.check(TokenType::RightParen) {
             if args.len() >= 255 {
@@ -477,6 +515,12 @@ impl<'a> Parser<'a> {
         loop {
             if self.match_single_token(TokenType::LeftParen) {
                 expr = self.finish_call(expr)?;
+            } else if self.match_single_token(TokenType::Dot) {
+                let name = self.consume(
+                    TokenType::Identifier, 
+                    LoxErrorsTypes::Syntax("Expected property name after".to_string())
+                )?;
+                expr = Rc::new(Expr::Get(GetExpr::new(expr, name)))
             } else {
                 break;
             }
@@ -489,8 +533,8 @@ impl<'a> Parser<'a> {
         let bracket = self.previous();
         let index = self.expression()?;
         self.consume(
-            TokenType::RightBracket, 
-            LoxErrorsTypes::Syntax("Expected ']' after".to_string())
+            TokenType::RightBracket,
+            LoxErrorsTypes::Syntax("Expected ']' after".to_string()),
         )?;
         Ok(Rc::new(Expr::Index(IndexExpr::new(var, bracket, index))))
     }
@@ -512,7 +556,10 @@ impl<'a> Parser<'a> {
     fn unary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         if self.is_match(vec![TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous();
-            return Ok(Rc::new(Expr::Unary(UnaryExpr::new(operator, self.unary()?))));
+            return Ok(Rc::new(Expr::Unary(UnaryExpr::new(
+                operator,
+                self.unary()?,
+            ))));
         }
 
         self.array_subscript()
@@ -534,7 +581,11 @@ impl<'a> Parser<'a> {
 
         while self.is_match(vec![TokenType::Plus, TokenType::Minus]) {
             let operator = self.previous();
-            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.factor()?)));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(
+                expr,
+                operator,
+                self.factor()?,
+            )));
         }
 
         Ok(expr)
@@ -560,7 +611,11 @@ impl<'a> Parser<'a> {
 
         while self.is_match(vec![TokenType::BangEqual, TokenType::Equals]) {
             let operator = self.previous();
-            expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.comparison()?)));
+            expr = Rc::new(Expr::Binary(BinaryExpr::new(
+                expr,
+                operator,
+                self.comparison()?,
+            )));
         }
         Ok(expr)
     }
@@ -625,6 +680,9 @@ impl<'a> Parser<'a> {
                     let name = var.name.dup();
                     return Ok(Rc::new(Expr::Assign(AssignExpr::new(name, value))));
                 }
+                Expr::Get(prop) => {
+                    return Ok(Rc::new(Expr::Set(SetExpr::new(prop.object.clone(), prop.name.dup(), value))));
+                },
                 _ => {
                     return Err(self.error_handler.error(
                         &token,
@@ -756,10 +814,10 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
-    use std::rc::Rc;
     use super::*;
     use crate::Scanner;
+    use std::ops::Add;
+    use std::rc::Rc;
 
     struct AstTraverser<'a> {
         statements: &'a Vec<Rc<Stmt>>,
@@ -792,7 +850,12 @@ mod tests {
     }
 
     impl<'a> VisitorExpr<String> for AstTraverser<'a> {
-        fn visit_call_expr(&self, _: Rc<Expr>, expr: &CallExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_call_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &CallExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let callee = self.evaluate(expr.callee.clone())?;
             let mut str = format!("CallExpr {callee}");
             if expr.args.len() > 0 {
@@ -808,26 +871,46 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_unary_expr(&self, _: Rc<Expr>, expr: &UnaryExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_unary_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &UnaryExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let op = &expr.operator.lexeme;
             let right = self.evaluate(expr.right.clone())?;
             let str = format!("UnaryExpr {op} {right}");
             Ok(str)
         }
 
-        fn visit_binary_expr(&self, _: Rc<Expr>, expr: &BinaryExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_binary_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &BinaryExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let left = self.evaluate(expr.left.clone())?;
             let right = self.evaluate(expr.right.clone())?;
             let str = format!("BinaryExpr {left} {} {right}", expr.operator.lexeme);
             Ok(str)
         }
 
-        fn visit_assign_expr(&self, _: Rc<Expr>, expr: &AssignExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_assign_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &AssignExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let val = self.evaluate(expr.value.clone())?;
             Ok(format!("AssignExpr {} = {val}", expr.name.lexeme))
         }
 
-        fn visit_lambda_expr(&self, _: Rc<Expr>, expr: &LambdaExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_lambda_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &LambdaExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let mut params = "".to_string();
             for (i, param) in expr.params.iter().enumerate() {
                 params.push_str(&param.lexeme);
@@ -847,7 +930,12 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_logical_expr(&self, _: Rc<Expr>, expr: &LogicalExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_logical_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &LogicalExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let left = self.evaluate(expr.left.clone())?;
             let right = self.evaluate(expr.right.clone())?;
             let str = format!("LogicalExpr {left} {} {right}", expr.operator.lexeme);
@@ -855,12 +943,22 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_literal_expr(&self, _: Rc<Expr>, expr: &LiteralExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_literal_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &LiteralExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let str = format!("LiteralExpr {}", expr.value);
             Ok(str)
         }
 
-        fn visit_ternary_expr(&self, _: Rc<Expr>, expr: &TernaryExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_ternary_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &TernaryExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let left = self.evaluate(expr.left.clone())?;
             let middle = self.evaluate(expr.middle.clone())?;
             let right = self.evaluate(expr.right.clone())?;
@@ -869,14 +967,24 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_grouping_expr(&self, _: Rc<Expr>, expr: &GroupingExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_grouping_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &GroupingExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let inner = self.evaluate(expr.expression.clone())?;
             let str = format!("GroupingExpr ({inner})");
 
             Ok(str)
         }
 
-        fn visit_variable_expr(&self, _: Rc<Expr>, expr: &VariableExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_variable_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &VariableExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let str = format!("VariableExpr {}", expr.name.lexeme);
             Ok(str)
         }
@@ -895,7 +1003,12 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_array_expr(&self, _: Rc<Expr>, expr: &ArrayExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_array_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &ArrayExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let mut str = String::from("ArrayExpr ");
             let len = expr.arr.len();
             str.push('[');
@@ -909,7 +1022,12 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_index_expr(&self, _: Rc<Expr>, expr: &IndexExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_index_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &IndexExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let name = self.evaluate(expr.identifier.clone())?;
             let index = self.evaluate(expr.index.clone())?;
             let str = format!("IndexExpr {} {}", name, index);
@@ -922,7 +1040,7 @@ mod tests {
             let cond = self.evaluate(stmt.condition.clone())?;
             let body = self.execute(stmt.then_branch.clone())?;
             let mut str = format!("IfStmt ({}) ", cond);
-                
+
             str.push_str(&body);
             if stmt.else_branch.is_some() {
                 let else_branch = self.execute(stmt.else_branch.as_ref().unwrap().clone())?;
@@ -966,14 +1084,24 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_print_stmt(&self, _: Rc<Stmt>, stmt: &PrintStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_print_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &PrintStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let expr = self.evaluate(stmt.expr.clone())?;
             let str = format!("PrintStmt {expr}");
 
             Ok(str)
         }
 
-        fn visit_block_stmt(&self, _: Rc<Stmt>, stmt: &BlockStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_block_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &BlockStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let mut str = format!("BlockStmt");
 
             str.push_str(" { ");
@@ -988,31 +1116,56 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_while_stmt(&self, _: Rc<Stmt>, stmt: &WhileStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_while_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &WhileStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let condition = self.evaluate(stmt.condition.clone())?;
             let body = self.execute(stmt.body.clone())?;
             let str = format!("WhileStmt ({}) {}", condition, body);
             Ok(str)
         }
 
-        fn visit_break_stmt(&self, _: Rc<Stmt>, _: &BreakStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_break_stmt(
+            &self,
+            _: Rc<Stmt>,
+            _: &BreakStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let str = format!("BreakStmt");
             Ok(str)
         }
 
-        fn visit_return_stmt(&self, _: Rc<Stmt>, stmt: &ReturnStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_return_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &ReturnStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let val = self.evaluate(stmt.value.clone())?;
             let str = format!("ReturnStmt {val}");
 
             Ok(str)
         }
 
-        fn visit_continue_stmt(&self, _: Rc<Stmt>, _: &ContinueStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_continue_stmt(
+            &self,
+            _: Rc<Stmt>,
+            _: &ContinueStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let str = format!("ContinueStmt");
             Ok(str)
         }
 
-        fn visit_function_stmt(&self, _: Rc<Stmt>, stmt: &FunctionStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_function_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &FunctionStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let mut params = "".to_string();
             for (i, param) in stmt.params.iter().enumerate() {
                 params.push_str(&param.lexeme);
@@ -1030,7 +1183,12 @@ mod tests {
             }
 
             body.push_str(" }");
-            let str = format!("FunctionStmt {}({}) {}", stmt.name.lexeme, params.trim(), body);
+            let str = format!(
+                "FunctionStmt {}({}) {}",
+                stmt.name.lexeme,
+                params.trim(),
+                body
+            );
 
             Ok(str)
         }
@@ -1485,7 +1643,8 @@ mod tests {
     #[test]
     fn unary_not_chaining() {
         let src = "!!!!true;";
-        let expected = vec!["ExpressionStmt UnaryExpr ! UnaryExpr ! UnaryExpr ! UnaryExpr ! LiteralExpr true"];
+        let expected =
+            vec!["ExpressionStmt UnaryExpr ! UnaryExpr ! UnaryExpr ! UnaryExpr ! LiteralExpr true"];
         perform(src, expected)
     }
 
@@ -1882,7 +2041,9 @@ mod tests {
     #[test]
     fn assignment_logical() {
         let src = "a = true and false;";
-        let expected = vec!["ExpressionStmt AssignExpr a = LogicalExpr LiteralExpr true and LiteralExpr false"];
+        let expected = vec![
+            "ExpressionStmt AssignExpr a = LogicalExpr LiteralExpr true and LiteralExpr false",
+        ];
         perform(src, expected);
     }
 
@@ -1983,7 +2144,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn logical_or_semicolon() {
         let src = "true or false";
@@ -2032,7 +2193,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn inequality_no_rhs() {
         let src = "1 != ;";
@@ -2053,7 +2214,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn inequality_no_semicolon() {
         let src = "1 != 2";
@@ -2081,7 +2242,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn comparison_greaterequal_no_rhs() {
         let src = "1 >= ;";
@@ -2109,7 +2270,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Unexpected token".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn comparison_greaterequal_no_operands() {
         let src = " >= ;";
@@ -2137,7 +2298,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
         perform_err(src, expected);
     }
-    
+
     #[test]
     fn comparison_greaterequal_no_semicolon() {
         let src = "1 >= 2";
@@ -2222,7 +2383,6 @@ mod tests {
         perform_err(src, expected)
     }
 
-
     #[test]
     fn unary_negate_no_rhs() {
         let src = "-;";
@@ -2257,7 +2417,7 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected ')' after".to_string());
         perform_err(src, expected)
     }
-    
+
     #[test]
     fn function_call_no_expr() {
         let src = "a(;";
@@ -2280,7 +2440,7 @@ mod tests {
     }
 
     #[test]
-    fn print_no_expr(){
+    fn print_no_expr() {
         let src = "print ;";
         let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
         perform_err(src, expected)
@@ -2589,7 +2749,9 @@ mod tests {
     #[test]
     fn while_statement() {
         let src = "while (i < 10) {}";
-        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt {  }"];
+        let expected = vec![
+            "WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt {  }",
+        ];
         perform(src, expected)
     }
 
@@ -2610,7 +2772,6 @@ mod tests {
         let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) BlockStmt { BreakStmt }"];
         perform(src, expected)
     }
-
 
     #[test]
     fn while_statement_simple_statement() {
@@ -2700,7 +2861,9 @@ mod tests {
         let src = "fn test(a, b) {
             return a + b;
         }";
-        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt BinaryExpr VariableExpr a + VariableExpr b }"];
+        let expected = vec![
+            "FunctionStmt test(a, b) { ReturnStmt BinaryExpr VariableExpr a + VariableExpr b }",
+        ];
         perform(src, expected)
     }
 
@@ -2714,13 +2877,14 @@ mod tests {
         perform(src, expected)
     }
 
-
     #[test]
     fn fn_statement_print() {
         let src = "fn test(a, b) {
             print a + b;
         }";
-        let expected = vec!["FunctionStmt test(a, b) { PrintStmt BinaryExpr VariableExpr a + VariableExpr b }"];
+        let expected = vec![
+            "FunctionStmt test(a, b) { PrintStmt BinaryExpr VariableExpr a + VariableExpr b }",
+        ];
         perform(src, expected)
     }
 
@@ -2731,7 +2895,8 @@ mod tests {
                 return a;
             }
         }";
-        let expected = vec!["FunctionStmt test(a, b) { FunctionStmt nested() { ReturnStmt VariableExpr a } }"];
+        let expected =
+            vec!["FunctionStmt test(a, b) { FunctionStmt nested() { ReturnStmt VariableExpr a } }"];
         perform(src, expected)
     }
 
@@ -2916,7 +3081,8 @@ mod tests {
     #[test]
     fn index_expr_call() {
         let src = "a()[0];";
-        let expected = vec!["ExpressionStmt IndexExpr CallExpr VariableExpr a LiteralExpr Number { 0 }"];
+        let expected =
+            vec!["ExpressionStmt IndexExpr CallExpr VariableExpr a LiteralExpr Number { 0 }"];
         perform(src, expected)
     }
 
