@@ -19,6 +19,7 @@ fn main() -> io::Result<()> {
         "Index ; identifier: Rc<Expr>, bracket: Token, index: Rc<Expr>".to_string(),
         "Get ; object: Rc<Expr>, name: Token".to_string(),
         "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>".to_string(),
+        "Update ; var: Rc<Expr>, operator: Token, prefix: bool".to_string(),
     ];
 
     let expr_mods = vec![

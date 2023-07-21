@@ -1,7 +1,3 @@
-class Bread {
-    eat() {
-        print "Crunch crunch crunch!";
-    }
+for (let i = 0; i < 10; ++i) {
+    print i;
 }
-
-Bread().eat();

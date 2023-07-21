@@ -1,8 +1,5 @@
 use super::{
-    callable::{Callable, LoxCallable},
-    environment::Environment,
-    loxclass::LoxClass,
-    loxfunction::LoxFunction,
+    callable::LoxCallable, environment::Environment, loxclass::LoxClass, loxfunction::LoxFunction,
 };
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
@@ -524,7 +521,7 @@ impl VisitorExpr<Literal> for Interpreter {
                     ));
                 }
                 func.native.call(self, args)
-            },
+            }
             _ => Err(self.error_handler.error(
                 &expr.paren,
                 LoxErrorsTypes::Runtime("Can only call functions and classes".to_string()),
@@ -622,6 +619,51 @@ impl VisitorExpr<Literal> for Interpreter {
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have fields".to_string()),
             )),
+        }
+    }
+
+    fn visit_update_expr(
+        &self,
+        _: Rc<Expr>,
+        expr: &UpdateExpr,
+        _: u16,
+    ) -> Result<Literal, LoxResult> {
+        match &*expr.var {
+            Expr::Variable(v) => {
+                let var = self.evaluate(expr.var.clone())?;
+                match var {
+                    Literal::Number(num) => {
+                        let final_num = if expr.operator.token_type == TokenType::PlusPlus {
+                            num + 1_f64
+                        } else {
+                            num - 1_f64
+                        };
+
+                        self.environment.borrow().borrow_mut().mutate(&v.name, Literal::Number(final_num))?;
+
+                        if expr.prefix {
+                            return Ok(self.environment.borrow().borrow().get(&v.name)?.dup())
+                        }
+                        Ok(var)
+                    },
+                    _ => Err(self.error_handler.error(
+                        &expr.operator, 
+                        LoxErrorsTypes::Type("Invalid type for".to_string())
+                    ))
+                }
+            },
+            _ => {
+                if expr.prefix {
+                    return Err(self.error_handler.error(
+                        &expr.operator,
+                        LoxErrorsTypes::Syntax("Invalid right-hand-side expression for".to_string()),
+                    ));
+                }
+                Err(self.error_handler.error(
+                    &expr.operator,
+                    LoxErrorsTypes::Syntax("Invalid left-hand-side expression for".to_string()),
+                ))
+            }
         }
     }
 }

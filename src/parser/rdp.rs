@@ -481,6 +481,20 @@ impl<'a> Parser<'a> {
         ))
     }
 
+    fn postfix_operation(&mut self) -> Result<Rc<Expr>, LoxResult> {
+        let expr = self.primary()?;
+        if self.is_match(vec![TokenType::PlusPlus, TokenType::MinusMinus]) {
+            let op = self.previous();
+            return Ok(Rc::new(Expr::Update(UpdateExpr::new(
+                expr.clone(),
+                op,
+                false,
+            ))));
+        }
+
+        Ok(expr)
+    }
+
     fn finish_call(&mut self, callee: Rc<Expr>) -> Result<Rc<Expr>, LoxResult> {
         let mut args: Vec<Rc<Expr>> = Vec::new();
         if self.check(TokenType::Semicolon) {
@@ -510,15 +524,15 @@ impl<'a> Parser<'a> {
     }
 
     fn call(&mut self) -> Result<Rc<Expr>, LoxResult> {
-        let mut expr = self.primary()?;
+        let mut expr = self.postfix_operation()?;
 
         loop {
             if self.match_single_token(TokenType::LeftParen) {
                 expr = self.finish_call(expr)?;
             } else if self.match_single_token(TokenType::Dot) {
                 let name = self.consume(
-                    TokenType::Identifier, 
-                    LoxErrorsTypes::Syntax("Expected property name after".to_string())
+                    TokenType::Identifier,
+                    LoxErrorsTypes::Syntax("Expected property name after".to_string()),
                 )?;
                 expr = Rc::new(Expr::Get(GetExpr::new(expr, name)))
             } else {
@@ -553,6 +567,15 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    fn prefix_operation(&mut self) -> Result<Rc<Expr>, LoxResult> {
+        if self.is_match(vec![TokenType::PlusPlus, TokenType::MinusMinus]) {
+            let op = self.previous();
+            let var = self.primary()?;
+            return Ok(Rc::new(Expr::Update(UpdateExpr::new(var, op, true))));
+        }
+        self.array_subscript()
+    }
+
     fn unary(&mut self) -> Result<Rc<Expr>, LoxResult> {
         if self.is_match(vec![TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous();
@@ -562,7 +585,7 @@ impl<'a> Parser<'a> {
             ))));
         }
 
-        self.array_subscript()
+        self.prefix_operation()
     }
 
     fn factor(&mut self) -> Result<Rc<Expr>, LoxResult> {
@@ -681,8 +704,12 @@ impl<'a> Parser<'a> {
                     return Ok(Rc::new(Expr::Assign(AssignExpr::new(name, value))));
                 }
                 Expr::Get(prop) => {
-                    return Ok(Rc::new(Expr::Set(SetExpr::new(prop.object.clone(), prop.name.dup(), value))));
-                },
+                    return Ok(Rc::new(Expr::Set(SetExpr::new(
+                        prop.object.clone(),
+                        prop.name.dup(),
+                        value,
+                    ))));
+                }
                 _ => {
                     return Err(self.error_handler.error(
                         &token,

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, loxwarninghandler::LoxWarningHandler, *},
-    lexer::token::Token,
+    lexer::{literal::Literal, token::Token},
     parser::expr::*,
     parser::stmt::*,
 };
@@ -328,6 +328,11 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
     fn visit_set_expr(&self, _: Rc<Expr>, expr: &SetExpr, _: u16) -> Result<(), LoxResult> {
         self.resolve_expr(expr.value.clone())?;
         self.resolve_expr(expr.object.clone())?;
+        Ok(())
+    }
+
+    fn visit_update_expr(&self, _: Rc<Expr>, expr: &UpdateExpr, _: u16) -> Result<(), LoxResult> {
+        self.resolve_expr(expr.var.clone())?;
         Ok(())
     }
 }

@@ -202,6 +202,8 @@ impl<'a> Scanner<'a> {
             '-' => {
                 let token = if self.is_match('=') {
                     TokenType::MinusEqual
+                } else if self.is_match('-') {
+                    TokenType::MinusMinus
                 } else {
                     TokenType::Minus
                 };
@@ -210,6 +212,8 @@ impl<'a> Scanner<'a> {
             '+' => {
                 let token = if self.is_match('=') {
                     TokenType::PlusEqual
+                } else if self.is_match('+') {
+                    TokenType::PlusPlus
                 } else {
                     TokenType::Plus
                 };
