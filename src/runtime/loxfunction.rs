@@ -1,22 +1,32 @@
-use super::{callable::LoxCallable, environment::Environment, interpreter::Interpreter};
-use crate::{error::*, lexer::literal::Literal, lexer::token::*, parser::{stmt::*, expr::LambdaExpr}};
-use std::{fmt::Display, rc::Rc, cell::RefCell};
+use super::{
+    callable::LoxCallable, environment::Environment, interpreter::Interpreter,
+    loxinstance::LoxInstance,
+};
+use crate::{
+    error::*,
+    lexer::literal::Literal,
+    lexer::token::*,
+    parser::{expr::LambdaExpr, stmt::*},
+};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoxFunction {
+    is_initializer: bool,
     name: Option<Token>,
     params: Rc<Vec<Token>>,
     body: Rc<Vec<Rc<Stmt>>>,
-    closure: Rc<RefCell<Environment>>
+    closure: Rc<RefCell<Environment>>,
 }
 
 impl LoxFunction {
-    pub fn new(decl: &FunctionStmt, env: &Rc<RefCell<Environment>>) -> Self {
+    pub fn new(decl: &FunctionStmt, env: &Rc<RefCell<Environment>>, is_initializer: bool) -> Self {
         Self {
             name: Some(decl.name.dup()),
             params: Rc::clone(&decl.params),
             body: decl.body.clone(),
-            closure: Rc::clone(env)
+            closure: Rc::clone(env),
+            is_initializer,
         }
     }
 
@@ -25,16 +35,29 @@ impl LoxFunction {
             name: None,
             params: Rc::clone(&decl.params),
             body: Rc::clone(&decl.body),
-            closure: Rc::clone(env)
+            closure: Rc::clone(env),
+            is_initializer: false
         }
+    }
+
+    pub fn bind(&self, instance: Rc<LoxInstance>) -> Result<Rc<Self>, LoxResult> {
+        let mut env = Environment::new_enclosing(self.closure.clone());
+        env.define(&Token::this(), Literal::Instance(instance))?;
+        Ok(Rc::new(LoxFunction {
+            name: self.name.clone(),
+            params: self.params.clone(),
+            body: self.body.clone(),
+            closure: Rc::new(RefCell::new(env)),
+            is_initializer: self.is_initializer
+        }))
     }
 }
 
 impl Display for LoxFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.name.is_some() {
-            return write!(f, "<Fn {}>", self.name.as_ref().unwrap().lexeme)
-        } 
+            return write!(f, "<Fn {}>", self.name.as_ref().unwrap().lexeme);
+        }
         write!(f, "<Fn Lamba>")
     }
 }
@@ -53,17 +76,14 @@ impl LoxCallable for LoxFunction {
                 _ => return Err(ret_val),
             }
         }
+
+        if self.is_initializer {
+            return Ok(self.closure.borrow().get_at(0, &Token::this())?);
+        }
         Ok(Literal::None)
     }
 
     fn arity(&self) -> usize {
         self.params.len()
     }
-
-    // fn to_string(&self) -> String {
-    //     if self.name.is_some() {
-    //         return format!("<Fn {}>", self.name.as_ref().unwrap().lexeme)
-    //     }
-    //     String::from("<Lambda>")
-    // }
 }

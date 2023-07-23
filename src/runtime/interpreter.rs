@@ -587,6 +587,33 @@ impl VisitorExpr<Literal> for Interpreter {
                 return Ok(arr.get((len + num) as usize).unwrap().dup());
             }
             Ok(arr.get(num as usize).unwrap().dup())
+        } else if let Literal::Str(str) = literal {
+            if index.get_typename() != "Number" {
+                return Err(self.error_handler.error(
+                    &expr.bracket,
+                    LoxErrorsTypes::Runtime("Can only index arrays with numbers".to_string()),
+                ));
+            }
+            let num = index.unwrap_number() as isize;
+            let len = str.len() as isize;
+            if num > len {
+                return Err(self.error_handler.error(
+                    &expr.bracket,
+                    LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
+                ));
+            }
+            if num < 0 {
+                if len + num < 0 {
+                    return Err(self.error_handler.error(
+                        &expr.bracket,
+                        LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
+                    ));
+                }
+                let string = *str.as_bytes().get((len + num) as usize).unwrap() as char;
+                return Ok(Literal::Str(string.to_string()));
+            }
+            let string = *str.as_bytes().get(num as usize).unwrap() as char;
+            Ok(Literal::Str(string.to_string()))
         } else {
             Err(self.error_handler.error(
                 &expr.bracket,
@@ -598,7 +625,7 @@ impl VisitorExpr<Literal> for Interpreter {
     fn visit_get_expr(&self, _: Rc<Expr>, expr: &GetExpr, _: u16) -> Result<Literal, LoxResult> {
         let object = self.evaluate(expr.object.clone())?;
         match object {
-            Literal::Instance(i) => return Ok(i.get(&expr.name)?),
+            Literal::Instance(i) => return Ok(i.get(&expr.name, &i)?),
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
@@ -639,32 +666,36 @@ impl VisitorExpr<Literal> for Interpreter {
                             num - 1_f64
                         };
 
-                        self.environment.borrow().borrow_mut().mutate(&v.name, Literal::Number(final_num))?;
+                        self.environment
+                            .borrow()
+                            .borrow_mut()
+                            .mutate(&v.name, Literal::Number(final_num))?;
 
                         if expr.prefix {
-                            return Ok(self.environment.borrow().borrow().get(&v.name)?.dup())
+                            return Ok(self.environment.borrow().borrow().get(&v.name)?.dup());
                         }
                         Ok(var)
-                    },
+                    }
                     _ => Err(self.error_handler.error(
-                        &expr.operator, 
-                        LoxErrorsTypes::Type("Invalid type for".to_string())
-                    ))
-                }
-            },
-            _ => {
-                if expr.prefix {
-                    return Err(self.error_handler.error(
                         &expr.operator,
-                        LoxErrorsTypes::Syntax("Invalid right-hand-side expression for".to_string()),
-                    ));
+                        LoxErrorsTypes::Type("Invalid type for".to_string()),
+                    )),
                 }
-                Err(self.error_handler.error(
-                    &expr.operator,
-                    LoxErrorsTypes::Syntax("Invalid left-hand-side expression for".to_string()),
-                ))
             }
+            _ => Err(self.error_handler.error(
+                &expr.operator,
+                LoxErrorsTypes::Syntax("Expression is not assignable".to_string()),
+            )),
         }
+    }
+
+    fn visit_this_expr(
+        &self,
+        wrapper: Rc<Expr>,
+        expr: &ThisExpr,
+        _: u16,
+    ) -> Result<Literal, LoxResult> {
+        Ok(self.look_up_variable(&expr.keyword, &wrapper)?)
     }
 }
 
@@ -748,7 +779,11 @@ impl VisitorStmt<()> for Interpreter {
         stmt: &FunctionStmt,
         _: u16,
     ) -> Result<(), LoxResult> {
-        let function = LoxFunction::new(stmt, &self.environment.borrow());
+        let function = LoxFunction::new(
+            stmt,
+            &self.environment.borrow(),
+            stmt.name.lexeme.eq("init"),
+        );
         self.environment
             .borrow_mut()
             .borrow_mut()
@@ -818,7 +853,11 @@ impl VisitorStmt<()> for Interpreter {
         for m in stmt.methods.iter() {
             match &**m {
                 Stmt::Function(f) => {
-                    let func = LoxFunction::new(&*f, &*self.environment.borrow());
+                    let func = LoxFunction::new(
+                        &*f,
+                        &*self.environment.borrow(),
+                        f.name.lexeme.eq("init"),
+                    );
                     methods.insert(f.name.lexeme.to_string(), Literal::Func(Rc::new(func)));
                 }
                 _ => {

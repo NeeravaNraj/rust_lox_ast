@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, loxwarninghandler::LoxWarningHandler, *},
-    lexer::{literal::Literal, token::Token},
+    lexer::token::Token,
     parser::expr::*,
     parser::stmt::*,
 };
@@ -16,6 +16,7 @@ enum FnType {
     None,
     Function,
     Method,
+    Initializer,
 }
 
 #[derive(PartialEq)]
@@ -26,9 +27,19 @@ enum LoopType {
 
 #[derive(PartialEq)]
 struct VariableType {
-    token: Token,
+    token: Option<Token>,
     define: bool,
     used: bool,
+}
+
+impl VariableType {
+    fn new(tok: Token, d: bool, u: bool) -> Self {
+        Self {
+            token: Some(tok),
+            define: d,
+            used: u,
+        }
+    }
 }
 
 #[derive(PartialEq)]
@@ -36,16 +47,12 @@ enum Returned {
     None,
     Return(i32),
 }
-impl VariableType {
-    fn new(tok: Token, d: bool, u: bool) -> Self {
-        Self {
-            token: tok,
-            define: d,
-            used: u,
-        }
-    }
-}
 
+#[derive(PartialEq)]
+enum ClassType {
+    None,
+    Class,
+}
 pub struct Resolver<'a> {
     pub had_error: RefCell<bool>,
     interpreter: &'a Interpreter,
@@ -53,6 +60,7 @@ pub struct Resolver<'a> {
     error_handler: LoxErrorHandler,
     warning_handler: LoxWarningHandler,
     current_fn: RefCell<FnType>,
+    current_class: RefCell<ClassType>,
     current_loop: RefCell<LoopType>,
     returned: RefCell<Returned>,
 }
@@ -68,6 +76,7 @@ impl<'a> Resolver<'a> {
             current_loop: RefCell::new(LoopType::None),
             had_error: RefCell::new(false),
             warning_handler: LoxWarningHandler::new(),
+            current_class: RefCell::new(ClassType::None),
         }
     }
 
@@ -86,14 +95,20 @@ impl<'a> Resolver<'a> {
             if self.current_fn.borrow().eq(&FnType::Function)
                 || self.current_fn.borrow().eq(&FnType::Method)
             {
+                let fn_type_str = if self.current_fn.borrow().eq(&FnType::Function) {
+                    "function"
+                } else {
+                    "method"
+                };
                 unsafe {
                     match *self.returned.as_ptr() {
                         Returned::Return(line) if function.body.len() - 1 > i => {
                             self.warning_handler.simple_warning(
                                 line + 1,
                                 LoxWarningTypes::DeadCode(format!(
-                                    "Found unreachable code after line '{}' in function '{}'",
+                                    "Found unreachable code after line '{}' in {} '{}'",
                                     line + 1,
+                                    fn_type_str,
                                     function.name.lexeme
                                 )),
                             );
@@ -136,7 +151,7 @@ impl<'a> Resolver<'a> {
             for var in scope.borrow().values() {
                 if !var.used {
                     self.warning_handler.warn(
-                        &var.token,
+                        var.token.as_ref().unwrap(),
                         LoxWarningTypes::UnusedVariable("Unused variable".to_string()),
                     );
                 }
@@ -188,8 +203,7 @@ impl<'a> Resolver<'a> {
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
         for (i, scope) in self.scopes.borrow().iter().rev().enumerate() {
             if scope.borrow().contains_key(&name.lexeme) {
-                self.interpreter
-                    .resolve(expr.clone(), self.scopes.borrow().len() - 1 - i);
+                self.interpreter.resolve(expr.clone(), i);
                 return;
             }
         }
@@ -335,6 +349,17 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         self.resolve_expr(expr.var.clone())?;
         Ok(())
     }
+
+    fn visit_this_expr(&self, wrapper: Rc<Expr>, expr: &ThisExpr, _: u16) -> Result<(), LoxResult> {
+        if self.current_class.borrow().eq(&ClassType::None) {
+            return Err(self.error_handler.error(
+                &expr.keyword,
+                LoxErrorsTypes::Syntax("Cannot use 'this' outside of a class".to_string()),
+            ));
+        }
+        self.resolve_local(wrapper.clone(), &expr.keyword);
+        Ok(())
+    }
 }
 
 impl<'a> VisitorStmt<()> for Resolver<'a> {
@@ -418,6 +443,16 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
                 &stmt.keyword,
                 LoxErrorsTypes::Parse("Unexpected return outside function".to_string()),
             );
+            return Ok(())
+        }
+
+        if self.current_fn.borrow().eq(&FnType::Initializer) {
+            self.had_error.replace(true);
+            self.error_handler.error(
+                &stmt.keyword, 
+                LoxErrorsTypes::Parse("Cannot return from class initializer".to_string())
+            );
+            return Ok(())
         }
         self.resolve_expr(stmt.value.clone())?;
         self.returned.replace(Returned::Return(stmt.keyword.line));
@@ -467,9 +502,31 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         self.declare(&stmt.name);
         self.define(&stmt.name);
 
+        self.begin_scope();
+        let prev = self.current_class.replace(ClassType::Class);
+        self.scopes
+            .borrow_mut()
+            .last()
+            .unwrap()
+            .borrow_mut()
+            .insert(
+                "this".to_string(),
+                VariableType {
+                    token: None,
+                    define: true,
+                    used: true,
+                },
+            );
+
         for method in stmt.methods.iter() {
+            let mut fn_type = FnType::Method;
             match &**method {
-                Stmt::Function(f) => self.resolve_function(&*f, FnType::Method)?,
+                Stmt::Function(f) => {
+                    if f.name.lexeme == "init" {
+                        fn_type = FnType::Initializer;
+                    }
+                    self.resolve_function(&*f, fn_type)?;
+                }
                 _ => {
                     return Err(LoxResult::Error(LoxError::system_error(
                         "Unexpected statement parsed",
@@ -477,6 +534,8 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
                 }
             }
         }
+        self.end_scope();
+        self.current_class.replace(prev);
         Ok(())
     }
 }

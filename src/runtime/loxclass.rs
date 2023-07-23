@@ -13,7 +13,7 @@ use super::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoxClass {
-    name: String,
+    pub name: String,
     methods: HashMap<String, Literal>
 }
 
@@ -42,11 +42,33 @@ impl Display for LoxClass {
 
 impl LoxCallable for LoxClass {
     fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
-        let instance = LoxInstance::new(self);
-        Ok(Literal::Instance(Rc::new(instance)))
+        let instance = Rc::new(LoxInstance::new(self));
+        let initializer = self.find_method(&"init".to_string());
+        if let Some(init) = initializer {
+            match init {
+                Literal::Func(func) => {
+                    func.bind(instance.clone())?.call(interpreter, args)?;
+                },
+                _ => {
+                    panic!("found non function literal in constructor")
+                }
+            }
+        }
+        Ok(Literal::Instance(instance.clone()))
     }
 
     fn arity(&self) -> usize {
+        let initializer = self.find_method(&"init".to_string());
+        if let Some(init) = initializer {
+            match init {
+                Literal::Func(func) => {
+                    return func.arity()
+                },
+                _ => {
+                    panic!("found non function literal in constructor arity")
+                }
+            }
+        }
         0
     }
 }

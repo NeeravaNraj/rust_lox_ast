@@ -72,9 +72,8 @@ impl Environment {
         if self.env.contains_key(&name.lexeme) {
             self.env.insert(name.lexeme.to_string(), val);
             return Ok(());
-        } else if self.enclosing.is_some() {
-            let enc = self.enclosing.as_mut().unwrap();
-            enc.borrow_mut().mutate(name, val)?;
+        } else if let Some(enclosing) = &self.enclosing {
+            enclosing.borrow_mut().mutate(name, val)?;
             return Ok(());
         }
 
@@ -84,8 +83,17 @@ impl Environment {
         ))
     }
 
-    pub fn mutate_at(&self, distance: usize, name: &Token, val: Literal) -> Result<(), LoxResult> {
-        self.ancestor(distance).mutate(name, val)
+    pub fn mutate_at(&mut self, distance: usize, name: &Token, val: Literal) -> Result<(), LoxResult> {
+        if distance == 0 {
+            self.mutate(name, val)?;
+            return Ok(());
+        } else {
+            self.enclosing
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .mutate_at(distance - 1, name, val)
+        }
     }
 
     pub fn get(&self, name: &Token) -> Result<Literal, LoxResult> {
@@ -101,15 +109,20 @@ impl Environment {
     }
 
     pub fn get_at(&self, distance: usize, name: &Token) -> Result<Literal, LoxResult> {
-        self.ancestor(distance).get(name)
-    }
-
-    fn ancestor(&self, distance: usize) -> Self {
-        let mut env = self.clone();
-        for _ in 0..distance {
-            let b_env = env.enclosing.as_ref().unwrap().borrow().clone();
-            env = b_env;
+        if distance == 0 {
+            if let Some(var) = self.env.get(&name.lexeme) {
+                return Ok(var.dup())
+            }
+            return Err(self.error_handler.error(
+                name, 
+                LoxErrorsTypes::ReferenceError("Undefined variable".to_string())
+            ));
+        } else {
+            self.enclosing
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .get_at(distance - 1, name)
         }
-        env
     }
 }

@@ -455,6 +455,10 @@ impl<'a> Parser<'a> {
             return self.lambda_fn();
         }
 
+        if self.match_single_token(TokenType::This) {
+            return Ok(Rc::new(Expr::This(ThisExpr::new(self.previous()))));
+        }
+
         if self.match_single_token(TokenType::LeftParen) {
             let expr = self.expression()?;
             self.consume(

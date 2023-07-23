@@ -1,11 +1,12 @@
-use std::{fmt::Display, collections::HashMap};
 use crate::{
+    error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
     lexer::literal::Literal,
     lexer::token::Token,
-    error::{LoxResult, loxerrorhandler::LoxErrorHandler, LoxErrorsTypes},
 };
+use std::{collections::HashMap, fmt::Display};
 
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::loxclass::LoxClass;
 
@@ -13,7 +14,7 @@ use super::loxclass::LoxClass;
 pub struct LoxInstance {
     klass: LoxClass,
     fields: RefCell<HashMap<String, Literal>>,
-    error_handler: LoxErrorHandler
+    error_handler: LoxErrorHandler,
 }
 
 impl LoxInstance {
@@ -21,22 +22,26 @@ impl LoxInstance {
         Self {
             klass: klass.clone(),
             fields: RefCell::new(HashMap::new()),
-            error_handler: LoxErrorHandler::new()
+            error_handler: LoxErrorHandler::new(),
         }
     }
 
-    pub fn get(&self, name: &Token) -> Result<Literal, LoxResult> {
+    pub fn get(&self, name: &Token, this: &Rc<LoxInstance>) -> Result<Literal, LoxResult> {
         if self.fields.borrow().contains_key(&name.lexeme) {
-            return Ok(self.fields.borrow().get(&name.lexeme).unwrap().dup())
-        } 
+            return Ok(self.fields.borrow().get(&name.lexeme).unwrap().dup());
+        }
 
         if let Some(m) = self.klass.find_method(&name.lexeme) {
-            return Ok(m)
+            if let Literal::Func(method) = m {
+                return Ok(Literal::Func(method.bind(this.clone())?));
+            } else {
+                panic!("tried to bind 'this' to non function literal {m:?}")
+            }
         }
 
         Err(self.error_handler.error(
-            name, 
-            LoxErrorsTypes::Runtime(format!("Undefined propert '{}'", name.lexeme))
+            name,
+            LoxErrorsTypes::Runtime("Undefined property".to_string()),
         ))
     }
 
@@ -47,6 +52,6 @@ impl LoxInstance {
 
 impl<'a> Display for LoxInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Instance {}", self.klass)
+        write!(f, "<Instance {}>", self.klass.name)
     }
 }

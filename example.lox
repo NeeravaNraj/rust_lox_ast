@@ -37,7 +37,7 @@ let x = 1 == 2 ? true : false;
     let a = 1;
 
     {
-        let a = 2; 
+        let a = 2.4; 
         print a; // prints '2'
     }
     print a; // prints '1'

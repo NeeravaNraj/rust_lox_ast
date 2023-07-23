@@ -20,6 +20,7 @@ fn main() -> io::Result<()> {
         "Get ; object: Rc<Expr>, name: Token".to_string(),
         "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>".to_string(),
         "Update ; var: Rc<Expr>, operator: Token, prefix: bool".to_string(),
+        "This ; keyword: Token".to_string(),
     ];
 
     let expr_mods = vec![

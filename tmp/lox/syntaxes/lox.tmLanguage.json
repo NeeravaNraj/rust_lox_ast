@@ -1,0 +1,36 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Lox Programming Language",
+    "patterns": [
+        {
+            "include": "#declaration"
+        },
+        {
+            "include": "#control-statement"
+        },
+        {
+            "include": "#after-operator-block-as-object-literal"
+        },
+        {
+            "include": "#decl-block"
+        },
+        {
+            "include": "#label"
+        },
+        {
+            "include": "#expression"
+        },
+        {
+            "include": "#punctuation-semicolon"
+        },
+        {
+            "include": "#string"
+        },
+        {
+            "include": "#comment"
+        }
+    ],
+    "repository": {
+    },
+    "scopeName": "source.lox"
+}

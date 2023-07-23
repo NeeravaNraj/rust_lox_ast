@@ -38,6 +38,15 @@ impl Token {
             line,
         }
     }
+
+    pub fn this() -> Self {
+        Self {
+            token_type: TokenType::This,
+            lexeme: String::from("this"),
+            literal: None,
+            line: -1,
+        }
+    }
 }
 
 impl Display for Token {

@@ -1,3 +1,21 @@
-for (let i = 0; i < 10; ++i) {
-    print i;
+class Point {
+    init(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    print_point() {
+        print [this.x, this.y];
+        return 2;
+    }
 }
+
+fn test(x, y) {
+    print [x, y];
+}
+
+
+let p = Point(1.2, 123);
+let x = p.print_point();
+print x;
+print p;
