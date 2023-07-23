@@ -626,6 +626,26 @@ impl VisitorExpr<Literal> for Interpreter {
         let object = self.evaluate(expr.object.clone())?;
         match object {
             Literal::Instance(i) => return Ok(i.get(&expr.name, &i)?),
+            Literal::Class(c) => {
+                if let Some(method) = c.find_method(&expr.name.lexeme) {
+                    if let Literal::Func(f) = &method {
+                        if f.is_static {
+                            return Ok(method)
+                        }
+                        return Err(self.error_handler.error(
+                            &expr.name, 
+                            LoxErrorsTypes::ReferenceError("Trying to access non static property".to_string())
+                        ))
+                    } else {
+                        panic!("non function literal {method:?}")
+                    }
+                } else {
+                    return Err(self.error_handler.error(
+                        &expr.name, 
+                        LoxErrorsTypes::ReferenceError("Trying to access undefined property".to_string())
+                    ))
+                }
+            },
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
@@ -783,6 +803,7 @@ impl VisitorStmt<()> for Interpreter {
             stmt,
             &self.environment.borrow(),
             stmt.name.lexeme.eq("init"),
+            stmt.is_static
         );
         self.environment
             .borrow_mut()
@@ -857,6 +878,7 @@ impl VisitorStmt<()> for Interpreter {
                         &*f,
                         &*self.environment.borrow(),
                         f.name.lexeme.eq("init"),
+                        f.is_static
                     );
                     methods.insert(f.name.lexeme.to_string(), Literal::Func(Rc::new(func)));
                 }

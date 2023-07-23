@@ -40,7 +40,8 @@ impl<'a> Parser<'a> {
         )?;
 
         let initializer = if self.is_match(vec![TokenType::Assign]) {
-            Some(self.expression()?)
+            let val = self.expression()?;
+            Some(val)
         } else {
             None
         };
@@ -52,7 +53,7 @@ impl<'a> Parser<'a> {
         Ok(Rc::new(Stmt::Let(LetStmt::new(name, initializer))))
     }
 
-    fn function(&mut self, kind: &str) -> Result<Rc<Stmt>, LoxResult> {
+    fn function(&mut self, kind: &str, is_static: bool) -> Result<Rc<Stmt>, LoxResult> {
         let name = self.consume(
             TokenType::Identifier,
             LoxErrorsTypes::Syntax(format!("Expected {kind} name after")),
@@ -101,6 +102,7 @@ impl<'a> Parser<'a> {
             name,
             Rc::new(params),
             Rc::new(body),
+            is_static
         ))))
     }
 
@@ -108,7 +110,7 @@ impl<'a> Parser<'a> {
         let result = if self.match_single_token(TokenType::Let) {
             self.var_declaration()
         } else if self.match_single_token(TokenType::DefFn) {
-            self.function("function")
+            self.function("function", false)
         } else {
             self.statement()
         };
@@ -293,7 +295,11 @@ impl<'a> Parser<'a> {
 
         let mut methods: Vec<Rc<Stmt>> = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            methods.push(self.function("method")?);
+            if self.match_single_token(TokenType::Static) {
+                methods.push(self.function("method", true)?);
+            } else {
+                methods.push(self.function("method", false)?);
+            }
         }
 
         self.consume(
@@ -1064,6 +1070,29 @@ mod tests {
             let str = format!("IndexExpr {} {}", name, index);
             Ok(str)
         }
+
+        fn visit_get_expr(&self, _: Rc<Expr>, expr: &GetExpr, _: u16) -> Result<String, LoxResult> {
+            let obj = self.evaluate(expr.object.clone())?;
+            Ok(format!("GetExpr {} -> {}", obj, expr.name.lexeme))
+        }
+
+        fn visit_set_expr(&self, _: Rc<Expr>, expr: &SetExpr, _: u16) -> Result<String, LoxResult> {
+            let obj = self.evaluate(expr.object.clone())?;
+            let val = self.evaluate(expr.value.clone())?;
+            Ok(format!("SetExpr {} -> {} = {}", obj, expr.name.lexeme, val))
+        }
+
+        fn visit_this_expr(&self, _: Rc<Expr>, _: &ThisExpr, _: u16) -> Result<String, LoxResult> {
+            Ok("ThisExpr".to_string())
+        }
+
+        fn visit_update_expr(&self, _: Rc<Expr>, expr: &UpdateExpr, _: u16) -> Result<String, LoxResult> {
+            let var = self.evaluate(expr.var.clone())?;
+            if expr.prefix {
+                return Ok(format!("UpdateExpr {} {}", expr.operator.lexeme, var))
+            }
+            Ok(format!("UpdateExpr {1} {0}", expr.operator.lexeme, var))
+        }
     }
 
     impl<'a> VisitorStmt<String> for AstTraverser<'a> {
@@ -1233,6 +1262,14 @@ mod tests {
             let expr = self.evaluate(stmt.expr.clone())?;
             let str = format!("ExpressionStmt {expr}");
             Ok(str)
+        }
+
+        fn visit_class_stmt(&self, _: Rc<Stmt>, stmt: &ClassStmt, _: u16) -> Result<String, LoxResult> {
+            let mut methods = "".to_string();
+            for s in stmt.methods.iter() {
+                methods.push_str(self.execute(s.clone())?.as_str());
+            }
+            Ok(format!("ClassStmt {} {{ {} }}", stmt.name.lexeme, methods))
         }
     }
 
@@ -2591,6 +2628,7 @@ mod tests {
         let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else PrintStmt VariableExpr y"];
         perform(src, expected)
     }
+
     #[test]
     fn if_elif_else_statements_inline_stmt() {
         let src = "
@@ -3149,6 +3187,175 @@ mod tests {
     fn index_expr_unclosed() {
         let src = "a[0;";
         let expected = LoxErrorsTypes::Syntax("Expected ']' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn update_expr_prefix() {
+        let src = "++a;";
+        let expected = vec!["ExpressionStmt UpdateExpr ++ VariableExpr a"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn update_expr_postfix() {
+        let src = "a--;";
+        let expected = vec!["ExpressionStmt UpdateExpr VariableExpr a --"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn update_expr_no_semicolon() {
+        let src = "++a";
+        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
+        perform_err(src, expected)
+    }
+    
+    #[test]
+    fn get_expr() {
+        let src = "A.b;";
+        let expected = vec!["ExpressionStmt GetExpr VariableExpr A -> b"];
+        perform(src, expected)
+    }
+
+
+    #[test]
+    fn get_expr_call() {
+        let src = "A.b();";
+        let expected = vec!["ExpressionStmt CallExpr GetExpr VariableExpr A -> b"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn get_expr_chaining() {
+        let src = "A.b.c.d();";
+        let expected = vec!["ExpressionStmt CallExpr GetExpr GetExpr GetExpr VariableExpr A -> b -> c -> d"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn get_expr_no_rhs() {
+        let src = "A.;";
+        let expected = LoxErrorsTypes::Syntax("Expected property name after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn set_expr() {
+        let src = "a.b = 1;";
+        let expected = vec!["ExpressionStmt SetExpr VariableExpr a -> b = LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn set_expr_chaining() {
+        let src = "a.b.c.d = 1;";
+        let expected = vec!["ExpressionStmt SetExpr GetExpr GetExpr VariableExpr a -> b -> c -> d = LiteralExpr Number { 1 }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn set_expr_call() {
+        let src = "a.b() = 1;";
+        let expected = LoxErrorsTypes::Parse("Invalid assignment target".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn set_expr_no_value() {
+        let src = "a.b() = ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn set_expr_no_rhs() {
+        let src = "a. = 1;";
+        let expected = LoxErrorsTypes::Syntax("Expected property name after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl() {
+        let src = "class Point {}";
+        let expected = vec!["ClassStmt Point {  }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn class_decl_methods() {
+        let src = "class Point { init() {} }";
+        let expected = vec!["ClassStmt Point { FunctionStmt init() {  } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn class_decl_methods_this() {
+        let src = "class Point { init(x) { this.x = x; } }";
+        let expected = vec!["ClassStmt Point { FunctionStmt init(x) { ExpressionStmt SetExpr ThisExpr -> x = VariableExpr x } }"];
+        perform(src, expected)
+    }
+
+    #[test]
+    fn class_decl_no_name() {
+        let src = "class;";
+        let expected = LoxErrorsTypes::Syntax("Expected identifier for class".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_no_brace() {
+        let src = "class Point;";
+        let expected = LoxErrorsTypes::Syntax("Expected '{' before class body".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_unclosed_body() {
+        let src = "class Point {;";
+        let expected = LoxErrorsTypes::Syntax("Expected method name after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_no_parens() {
+        let src = "class Point { init;";
+        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_unclosed_paren_no_params() {
+        let src = "class Point { init(;";
+        let expected = LoxErrorsTypes::Syntax("Expected parameter identifier".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_unclosed_paren() {
+        let src = "class Point { init(a;";
+        let expected = LoxErrorsTypes::Syntax("Expected ')' after parameters".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_no_brace() {
+        let src = "class Point { init(a) ;";
+        let expected = LoxErrorsTypes::Syntax("Expected '{' before method body".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_unclosed_body() {
+        let src = "class Point { init(a) { ;";
+        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
+        perform_err(src, expected)
+    }
+
+    #[test]
+    fn class_decl_method_unclosed_body_statement() {
+        let src = "class Point { init(a) { let a = 0;";
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after block".to_string());
         perform_err(src, expected)
     }
 }

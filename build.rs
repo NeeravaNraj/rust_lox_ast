@@ -41,7 +41,7 @@ fn main() -> io::Result<()> {
         "For ; var: Option<Rc<Stmt>>, condition: Option<Rc<Expr>>, update_expr: Option<Rc<Expr>>, body: Rc<Stmt>".to_string(),
         "Break ; token: Token".to_string(),
         "Continue ; token: Token".to_string(),
-        "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>".to_string(),
+        "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>, is_static: bool".to_string(),
         "Return ; keyword: Token, value: Rc<Expr>".to_string(),
         "Class ; name: Token, methods: Vec<Rc<Stmt>>".to_string(),
     ];

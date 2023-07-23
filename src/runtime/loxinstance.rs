@@ -33,6 +33,14 @@ impl LoxInstance {
 
         if let Some(m) = self.klass.find_method(&name.lexeme) {
             if let Literal::Func(method) = m {
+                if method.is_static {
+                    return Err(self.error_handler.error(
+                        name,
+                        LoxErrorsTypes::Runtime(
+                            "Cannot call static method from instantiated class".to_string(),
+                        ),
+                    ));
+                }
                 return Ok(Literal::Func(method.bind(this.clone())?));
             } else {
                 panic!("tried to bind 'this' to non function literal {m:?}")

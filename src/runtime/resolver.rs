@@ -57,6 +57,7 @@ pub struct Resolver<'a> {
     pub had_error: RefCell<bool>,
     interpreter: &'a Interpreter,
     scopes: RefCell<Vec<RefCell<HashMap<String, VariableType>>>>,
+    classes: RefCell<HashMap<String, ()>>,
     error_handler: LoxErrorHandler,
     warning_handler: LoxWarningHandler,
     current_fn: RefCell<FnType>,
@@ -70,6 +71,7 @@ impl<'a> Resolver<'a> {
         Self {
             interpreter,
             scopes: RefCell::new(Vec::new()),
+            classes: RefCell::new(HashMap::new()),
             error_handler: LoxErrorHandler::new(),
             current_fn: RefCell::new(FnType::None),
             returned: RefCell::new(Returned::None),
@@ -443,16 +445,16 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
                 &stmt.keyword,
                 LoxErrorsTypes::Parse("Unexpected return outside function".to_string()),
             );
-            return Ok(())
+            return Ok(());
         }
 
         if self.current_fn.borrow().eq(&FnType::Initializer) {
             self.had_error.replace(true);
             self.error_handler.error(
-                &stmt.keyword, 
-                LoxErrorsTypes::Parse("Cannot return from class initializer".to_string())
+                &stmt.keyword,
+                LoxErrorsTypes::Parse("Cannot return from class initializer".to_string()),
             );
-            return Ok(())
+            return Ok(());
         }
         self.resolve_expr(stmt.value.clone())?;
         self.returned.replace(Returned::Return(stmt.keyword.line));
@@ -501,6 +503,9 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
     fn visit_class_stmt(&self, _: Rc<Stmt>, stmt: &ClassStmt, _: u16) -> Result<(), LoxResult> {
         self.declare(&stmt.name);
         self.define(&stmt.name);
+        self.classes
+            .borrow_mut()
+            .insert(stmt.name.lexeme.to_string(), ());
 
         self.begin_scope();
         let prev = self.current_class.replace(ClassType::Class);

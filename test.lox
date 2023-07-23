@@ -6,16 +6,14 @@ class Point {
 
     print_point() {
         print [this.x, this.y];
-        return 2;
+        this.foo(2);
+    }
+
+    static foo(x) {
+        print x;
     }
 }
 
-fn test(x, y) {
-    print [x, y];
-}
-
-
 let p = Point(1.2, 123);
-let x = p.print_point();
-print x;
-print p;
+Point.foo(123);
+p.print_point() = 2;

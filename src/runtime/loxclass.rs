@@ -14,7 +14,7 @@ use super::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoxClass {
     pub name: String,
-    methods: HashMap<String, Literal>
+    methods: HashMap<String, Literal>,
 }
 
 impl LoxClass {

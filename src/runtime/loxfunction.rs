@@ -12,6 +12,7 @@ use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoxFunction {
+    pub is_static: bool,
     is_initializer: bool,
     name: Option<Token>,
     params: Rc<Vec<Token>>,
@@ -20,13 +21,19 @@ pub struct LoxFunction {
 }
 
 impl LoxFunction {
-    pub fn new(decl: &FunctionStmt, env: &Rc<RefCell<Environment>>, is_initializer: bool) -> Self {
+    pub fn new(
+        decl: &FunctionStmt,
+        env: &Rc<RefCell<Environment>>,
+        is_initializer: bool,
+        is_static: bool,
+    ) -> Self {
         Self {
             name: Some(decl.name.dup()),
             params: Rc::clone(&decl.params),
             body: decl.body.clone(),
             closure: Rc::clone(env),
             is_initializer,
+            is_static
         }
     }
 
@@ -36,7 +43,8 @@ impl LoxFunction {
             params: Rc::clone(&decl.params),
             body: Rc::clone(&decl.body),
             closure: Rc::clone(env),
-            is_initializer: false
+            is_initializer: false,
+            is_static: false
         }
     }
 
@@ -48,7 +56,8 @@ impl LoxFunction {
             params: self.params.clone(),
             body: self.body.clone(),
             closure: Rc::new(RefCell::new(env)),
-            is_initializer: self.is_initializer
+            is_initializer: self.is_initializer,
+            is_static: self.is_static
         }))
     }
 }
