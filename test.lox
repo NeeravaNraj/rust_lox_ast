@@ -1,19 +1,27 @@
-class Point {
-    init(x, y) {
-        this.x = x;
-        this.y = y;
+class User {
+    private password;
+    private tries;
+    public name;
+
+    init(name, password) {
+        this.name = name;
+        this.password = password;
+        this.tries = 3;
     }
 
-    print_point() {
-        print [this.x, this.y];
-        this.foo(2);
-    }
-
-    static foo(x) {
-        print x;
+    public login(password) {
+        if (this.password == password) {
+            print "Welcome " + this.name + "!";
+        } else {
+            if (this.tries == 0) {
+                print "You ran out of login attempts!";
+            } else {
+                this.tries -= 1;
+                print "Wrong password please try again";
+            }
+        }
     }
 }
 
-let p = Point(1.2, 123);
-Point.foo(123);
-p.print_point() = 2;
+let raghu = User("Raghu", "1234");
+raghu.login("1234");

@@ -60,6 +60,8 @@ pub enum TokenType {
     Break,
     Continue,
     Static,
+    Public,
+    Private,
 
     EOF,
 }

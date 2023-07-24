@@ -53,11 +53,21 @@ impl<'a> Parser<'a> {
         Ok(Rc::new(Stmt::Let(LetStmt::new(name, initializer))))
     }
 
-    fn function(&mut self, kind: &str, is_static: bool) -> Result<Rc<Stmt>, LoxResult> {
-        let name = self.consume(
-            TokenType::Identifier,
-            LoxErrorsTypes::Syntax(format!("Expected {kind} name after")),
-        )?;
+    fn function(
+        &mut self,
+        ident: Option<Token>,
+        kind: &str,
+        is_static: bool,
+        is_pub: bool,
+    ) -> Result<Rc<Stmt>, LoxResult> {
+        let name = if let Some(n) = ident {
+            n
+        } else {
+            self.consume(
+                TokenType::Identifier,
+                LoxErrorsTypes::Syntax(format!("Expected {kind} name after")),
+            )?
+        };
 
         self.consume(
             TokenType::LeftParen,
@@ -102,7 +112,8 @@ impl<'a> Parser<'a> {
             name,
             Rc::new(params),
             Rc::new(body),
-            is_static
+            is_static,
+            is_pub,
         ))))
     }
 
@@ -110,7 +121,7 @@ impl<'a> Parser<'a> {
         let result = if self.match_single_token(TokenType::Let) {
             self.var_declaration()
         } else if self.match_single_token(TokenType::DefFn) {
-            self.function("function", false)
+            self.function(None, "function", false, false)
         } else {
             self.statement()
         };
@@ -282,6 +293,44 @@ impl<'a> Parser<'a> {
         Ok(Rc::new(Stmt::Return(ReturnStmt::new(keyword, value))))
     }
 
+    fn class_field(
+        &mut self,
+        methods: &mut Vec<Rc<Stmt>>,
+        fields: &mut Vec<Rc<Stmt>>,
+        is_private: bool,
+        is_static: bool,
+    ) -> Result<(), LoxResult> {
+        if self.match_single_token(TokenType::Identifier) {
+            let name = self.previous();
+            if self.check(TokenType::LeftParen) {
+                methods.push(self.function(Some(name), "method", is_static, !is_private)?);
+                return Ok(());
+            }
+            if self.match_single_token(TokenType::Semicolon) {
+                fields.push(Rc::new(Stmt::Field(FieldStmt::new(
+                    name.dup(),
+                    !is_private,
+                    is_static,
+                ))));
+                return Ok(());
+            }
+
+            return Err(self.error_handler.error(
+                &name,
+                LoxErrorsTypes::Syntax("Expected ';' after".to_string()),
+            ));
+        }
+        if self.check(TokenType::Static) && is_private {
+            return Err(self.error_handler.error(
+                self.peek(),
+                LoxErrorsTypes::Syntax("Cannot make private property 'static'".to_string()),
+            ));
+        }
+
+        self.match_single_token(TokenType::Static);
+        self.class_field(methods, fields, is_private, true)
+    }
+
     fn class_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let name = self.consume(
             TokenType::Identifier,
@@ -293,12 +342,18 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected '{' before class body".to_string()),
         )?;
 
+        let mut fields: Vec<Rc<Stmt>> = Vec::new();
         let mut methods: Vec<Rc<Stmt>> = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            if self.match_single_token(TokenType::Static) {
-                methods.push(self.function("method", true)?);
+            // println!("{fields:?}");
+            if self.match_single_token(TokenType::Public) {
+                self.class_field(&mut methods, &mut fields, false, false)?;
+            } else if self.match_single_token(TokenType::Private) {
+                self.class_field(&mut methods, &mut fields, true, false)?;
+            } else if self.match_single_token(TokenType::Static) {
+                self.class_field(&mut methods, &mut fields, false, true)?;
             } else {
-                methods.push(self.function("method", false)?);
+                self.class_field(&mut methods, &mut fields, true, false)?;
             }
         }
 
@@ -307,7 +362,7 @@ impl<'a> Parser<'a> {
             LoxErrorsTypes::Syntax("Expected '}' before class body".to_string()),
         )?;
 
-        Ok(Rc::new(Stmt::Class(ClassStmt::new(name, methods))))
+        Ok(Rc::new(Stmt::Class(ClassStmt::new(name, fields, methods))))
     }
 
     fn statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
@@ -718,6 +773,7 @@ impl<'a> Parser<'a> {
                         prop.object.clone(),
                         prop.name.dup(),
                         value,
+                        token,
                     ))));
                 }
                 _ => {
@@ -762,6 +818,15 @@ impl<'a> Parser<'a> {
                     let name = var.name.dup();
                     return Ok(Rc::new(Expr::CompoundAssign(CompoundAssignExpr::new(
                         name, token, value,
+                    ))));
+                },
+
+                Expr::Get(prop) => {
+                    return Ok(Rc::new(Expr::Set(SetExpr::new(
+                        prop.object.clone(),
+                        prop.name.dup(),
+                        value,
+                        token,
                     ))));
                 }
                 _ => {
@@ -1086,10 +1151,15 @@ mod tests {
             Ok("ThisExpr".to_string())
         }
 
-        fn visit_update_expr(&self, _: Rc<Expr>, expr: &UpdateExpr, _: u16) -> Result<String, LoxResult> {
+        fn visit_update_expr(
+            &self,
+            _: Rc<Expr>,
+            expr: &UpdateExpr,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let var = self.evaluate(expr.var.clone())?;
             if expr.prefix {
-                return Ok(format!("UpdateExpr {} {}", expr.operator.lexeme, var))
+                return Ok(format!("UpdateExpr {} {}", expr.operator.lexeme, var));
             }
             Ok(format!("UpdateExpr {1} {0}", expr.operator.lexeme, var))
         }
@@ -1264,12 +1334,30 @@ mod tests {
             Ok(str)
         }
 
-        fn visit_class_stmt(&self, _: Rc<Stmt>, stmt: &ClassStmt, _: u16) -> Result<String, LoxResult> {
+        fn visit_class_stmt(
+            &self,
+            _: Rc<Stmt>,
+            stmt: &ClassStmt,
+            _: u16,
+        ) -> Result<String, LoxResult> {
             let mut methods = "".to_string();
             for s in stmt.methods.iter() {
                 methods.push_str(self.execute(s.clone())?.as_str());
             }
             Ok(format!("ClassStmt {} {{ {} }}", stmt.name.lexeme, methods))
+        }
+
+        fn visit_field_stmt(
+            &self,
+            wrapper: Rc<Stmt>,
+            stmt: &FieldStmt,
+            depth: u16,
+        ) -> Result<String, LoxResult> {
+            if stmt.is_pub {
+                return Ok(format!("FieldStmt public {}", stmt.name.lexeme));
+            }
+
+            Ok(format!("FieldStmt private {}", stmt.name.lexeme))
         }
     }
 
@@ -3210,14 +3298,13 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
         perform_err(src, expected)
     }
-    
+
     #[test]
     fn get_expr() {
         let src = "A.b;";
         let expected = vec!["ExpressionStmt GetExpr VariableExpr A -> b"];
         perform(src, expected)
     }
-
 
     #[test]
     fn get_expr_call() {
@@ -3229,7 +3316,8 @@ mod tests {
     #[test]
     fn get_expr_chaining() {
         let src = "A.b.c.d();";
-        let expected = vec!["ExpressionStmt CallExpr GetExpr GetExpr GetExpr VariableExpr A -> b -> c -> d"];
+        let expected =
+            vec!["ExpressionStmt CallExpr GetExpr GetExpr GetExpr VariableExpr A -> b -> c -> d"];
         perform(src, expected)
     }
 
@@ -3243,7 +3331,8 @@ mod tests {
     #[test]
     fn set_expr() {
         let src = "a.b = 1;";
-        let expected = vec!["ExpressionStmt SetExpr VariableExpr a -> b = LiteralExpr Number { 1 }"];
+        let expected =
+            vec!["ExpressionStmt SetExpr VariableExpr a -> b = LiteralExpr Number { 1 }"];
         perform(src, expected)
     }
 

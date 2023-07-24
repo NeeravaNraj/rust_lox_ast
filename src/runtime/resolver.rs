@@ -125,6 +125,7 @@ impl<'a> Resolver<'a> {
         self.check_unused();
         self.end_scope();
         self.current_fn.replace(enclosing_fn);
+        self.returned.replace(Returned::None);
         Ok(())
     }
 
@@ -533,14 +534,17 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
                     self.resolve_function(&*f, fn_type)?;
                 }
                 _ => {
-                    return Err(LoxResult::Error(LoxError::system_error(
-                        "Unexpected statement parsed",
-                    )))
+                    println!("{method:?}\n\n\n");
+                    panic!("Unexpected statement parsed {method:?}")
                 }
             }
         }
         self.end_scope();
         self.current_class.replace(prev);
+        Ok(())
+    }
+
+    fn visit_field_stmt(&self, wrapper: Rc<Stmt>, stmt: &FieldStmt, _: u16) -> Result<(), LoxResult> {
         Ok(())
     }
 }

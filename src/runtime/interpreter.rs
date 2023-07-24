@@ -1,5 +1,6 @@
 use super::{
     callable::LoxCallable, environment::Environment, loxclass::LoxClass, loxfunction::LoxFunction,
+    loxinstance::InstanceField,
 };
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
@@ -206,6 +207,50 @@ impl Interpreter {
             }
             _ => Ok(()),
         }
+    }
+
+    fn operate_compound_set(
+        &self,
+        operator: &Token,
+        a: Literal,
+        b: Literal,
+    ) -> Result<Literal, LoxResult> {
+        self.check_compound_arithmetic(operator, &a, &b)?;
+        match operator.token_type {
+            TokenType::PlusEqual => {
+                if let Ok(val) = a.add(b) {
+                    return Ok(val);
+                }
+            }
+            TokenType::MinusEqual => {
+                if let Ok(val) = a.sub(b) {
+                    return Ok(val);
+                }
+            }
+            TokenType::StarEqual => {
+                if let Ok(val) = a.mul(b) {
+                    return Ok(val);
+                }
+            }
+            TokenType::SlashEqual => {
+                if let Ok(val) = a.div(b) {
+                    return Ok(val);
+                }
+            }
+            TokenType::Assign => {
+                return Ok(b)
+            }
+            _ => {
+                return Err(self.error_handler.error(
+                    operator,
+                    LoxErrorsTypes::Runtime("Unsupported operator".to_string()),
+                ))
+            }
+        };
+
+        Err(self
+            .error_handler
+            .error(operator, LoxErrorsTypes::Syntax("".to_string())))
     }
 
     pub fn set_is_repl(&mut self, is: bool) {
@@ -626,26 +671,7 @@ impl VisitorExpr<Literal> for Interpreter {
         let object = self.evaluate(expr.object.clone())?;
         match object {
             Literal::Instance(i) => return Ok(i.get(&expr.name, &i)?),
-            Literal::Class(c) => {
-                if let Some(method) = c.find_method(&expr.name.lexeme) {
-                    if let Literal::Func(f) = &method {
-                        if f.is_static {
-                            return Ok(method)
-                        }
-                        return Err(self.error_handler.error(
-                            &expr.name, 
-                            LoxErrorsTypes::ReferenceError("Trying to access non static property".to_string())
-                        ))
-                    } else {
-                        panic!("non function literal {method:?}")
-                    }
-                } else {
-                    return Err(self.error_handler.error(
-                        &expr.name, 
-                        LoxErrorsTypes::ReferenceError("Trying to access undefined property".to_string())
-                    ))
-                }
-            },
+            Literal::Class(c) => return Ok(c.get(&expr.name, &c)?),
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
@@ -658,8 +684,19 @@ impl VisitorExpr<Literal> for Interpreter {
 
         match obj {
             Literal::Instance(i) => {
-                let val = self.evaluate(expr.value.clone())?;
-                i.set(&expr.name, val.dup());
+                let prev = *i.this.borrow();
+                let current = i.get(&expr.name, &i)?;
+                let new = self.evaluate(expr.value.clone())?;
+                let val = self.operate_compound_set(&expr.operator, current.dup(), new.dup())?;
+                i.this.replace(prev);
+                i.set(&expr.name, val.dup())?;
+                return Ok(val);
+            }
+            Literal::Class(c) => {
+                let current = c.get(&expr.name, &c)?;
+                let new = self.evaluate(expr.value.clone())?;
+                let val = self.operate_compound_set(&expr.operator, current.dup(), new.dup())?;
+                c.set(&expr.name, val.dup())?;
                 return Ok(val);
             }
             _ => Err(self.error_handler.error(
@@ -715,7 +752,19 @@ impl VisitorExpr<Literal> for Interpreter {
         expr: &ThisExpr,
         _: u16,
     ) -> Result<Literal, LoxResult> {
-        Ok(self.look_up_variable(&expr.keyword, &wrapper)?)
+        let obj = self.look_up_variable(&expr.keyword, &wrapper)?;
+        match obj {
+            Literal::Instance(inst) => {
+                *inst.this.borrow_mut() = true;
+                return Ok(Literal::Instance(inst));
+            }
+            Literal::Class(_) => {
+                return Ok(obj);
+            }
+            _ => {
+                panic!("found non instance this_expr {obj}")
+            }
+        }
     }
 }
 
@@ -803,7 +852,8 @@ impl VisitorStmt<()> for Interpreter {
             stmt,
             &self.environment.borrow(),
             stmt.name.lexeme.eq("init"),
-            stmt.is_static
+            stmt.is_static,
+            stmt.is_pub,
         );
         self.environment
             .borrow_mut()
@@ -871,6 +921,27 @@ impl VisitorStmt<()> for Interpreter {
             .borrow_mut()
             .define(&stmt.name, Literal::None)?;
         let mut methods: HashMap<String, Literal> = HashMap::new();
+        let mut static_fields: HashMap<String, Literal> = HashMap::new();
+        let mut other_fields: HashMap<String, InstanceField> = HashMap::new();
+
+        for field in stmt.fields.iter() {
+            match &**field {
+                Stmt::Field(f) => {
+                    if f.is_static {
+                        static_fields.insert(f.name.lexeme.to_string(), Literal::None);
+                    } else {
+                        other_fields.insert(
+                            f.name.lexeme.to_string(),
+                            InstanceField {
+                                value: Literal::None,
+                                is_public: f.is_pub,
+                            },
+                        );
+                    }
+                }
+                _ => panic!("Unexpected field parsed {field:?}"),
+            }
+        }
         for m in stmt.methods.iter() {
             match &**m {
                 Stmt::Function(f) => {
@@ -878,22 +949,33 @@ impl VisitorStmt<()> for Interpreter {
                         &*f,
                         &*self.environment.borrow(),
                         f.name.lexeme.eq("init"),
-                        f.is_static
+                        f.is_static,
+                        f.is_pub,
                     );
                     methods.insert(f.name.lexeme.to_string(), Literal::Func(Rc::new(func)));
                 }
-                _ => {
-                    return Err(LoxResult::Error(LoxError::system_error(
-                        "Unexpected statement parsed",
-                    )))
-                }
+                _ => panic!("unexpected statement {m:?}"),
             }
         }
-        let klass = LoxClass::new(stmt.name.lexeme.as_str(), methods);
+        let klass = LoxClass::new(
+            stmt.name.lexeme.as_str(),
+            methods,
+            static_fields,
+            other_fields,
+        );
         self.environment
             .borrow()
             .borrow_mut()
             .mutate(&stmt.name, Literal::Class(Rc::new(klass)))?;
+        Ok(())
+    }
+
+    fn visit_field_stmt(
+        &self,
+        wrapper: Rc<Stmt>,
+        stmt: &FieldStmt,
+        _: u16,
+    ) -> Result<(), LoxResult> {
         Ok(())
     }
 }

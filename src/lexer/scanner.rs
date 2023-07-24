@@ -337,6 +337,8 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("lm"), TokenType::DefLambda);
         hmap.insert(String::from("elif"), TokenType::Elif);
         hmap.insert(String::from("static"), TokenType::Static);
+        hmap.insert(String::from("public"), TokenType::Public);
+        hmap.insert(String::from("private"), TokenType::Private);
     }
 
     fn get_literal_type(&self, token: &TokenType) -> Literal {

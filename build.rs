@@ -18,7 +18,7 @@ fn main() -> io::Result<()> {
         "Array ; arr: Vec<Rc<Expr>>".to_string(),
         "Index ; identifier: Rc<Expr>, bracket: Token, index: Rc<Expr>".to_string(),
         "Get ; object: Rc<Expr>, name: Token".to_string(),
-        "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>".to_string(),
+        "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>, operator: Token".to_string(),
         "Update ; var: Rc<Expr>, operator: Token, prefix: bool".to_string(),
         "This ; keyword: Token".to_string(),
     ];
@@ -41,9 +41,10 @@ fn main() -> io::Result<()> {
         "For ; var: Option<Rc<Stmt>>, condition: Option<Rc<Expr>>, update_expr: Option<Rc<Expr>>, body: Rc<Stmt>".to_string(),
         "Break ; token: Token".to_string(),
         "Continue ; token: Token".to_string(),
-        "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>, is_static: bool".to_string(),
+        "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>, is_static: bool, is_pub: bool".to_string(),
         "Return ; keyword: Token, value: Rc<Expr>".to_string(),
-        "Class ; name: Token, methods: Vec<Rc<Stmt>>".to_string(),
+        "Class ; name: Token, fields: Vec<Rc<Stmt>>, methods: Vec<Rc<Stmt>>".to_string(),
+        "Field ; name: Token, is_pub: bool, is_static: bool".to_string(),
     ];
 
     let stmt_mods = vec![

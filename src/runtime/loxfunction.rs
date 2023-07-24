@@ -1,6 +1,6 @@
 use super::{
     callable::LoxCallable, environment::Environment, interpreter::Interpreter,
-    loxinstance::LoxInstance,
+    loxinstance::LoxInstance, loxclass::LoxClass,
 };
 use crate::{
     error::*,
@@ -13,6 +13,7 @@ use std::{cell::RefCell, fmt::Display, rc::Rc};
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoxFunction {
     pub is_static: bool,
+    pub is_pub: bool,
     is_initializer: bool,
     name: Option<Token>,
     params: Rc<Vec<Token>>,
@@ -26,6 +27,7 @@ impl LoxFunction {
         env: &Rc<RefCell<Environment>>,
         is_initializer: bool,
         is_static: bool,
+        is_pub: bool,
     ) -> Self {
         Self {
             name: Some(decl.name.dup()),
@@ -33,7 +35,8 @@ impl LoxFunction {
             body: decl.body.clone(),
             closure: Rc::clone(env),
             is_initializer,
-            is_static
+            is_static,
+            is_pub
         }
     }
 
@@ -44,7 +47,8 @@ impl LoxFunction {
             body: Rc::clone(&decl.body),
             closure: Rc::clone(env),
             is_initializer: false,
-            is_static: false
+            is_static: false,
+            is_pub: true,
         }
     }
 
@@ -57,7 +61,22 @@ impl LoxFunction {
             body: self.body.clone(),
             closure: Rc::new(RefCell::new(env)),
             is_initializer: self.is_initializer,
-            is_static: self.is_static
+            is_static: self.is_static,
+            is_pub: self.is_pub
+        }))
+    }
+
+    pub fn bind_static(&self, instance: Rc<LoxClass>) -> Result<Rc<Self>, LoxResult> {
+        let mut env = Environment::new_enclosing(self.closure.clone());
+        env.define(&Token::this(), Literal::Class(instance))?;
+        Ok(Rc::new(LoxFunction {
+            name: self.name.clone(),
+            params: self.params.clone(),
+            body: self.body.clone(),
+            closure: Rc::new(RefCell::new(env)),
+            is_initializer: self.is_initializer,
+            is_static: self.is_static,
+            is_pub: self.is_pub
         }))
     }
 }
