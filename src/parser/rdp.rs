@@ -13,6 +13,7 @@ pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     curr: usize,
     error_handler: LoxErrorHandler,
+    current_token: Option<Token>,
 }
 
 impl<'a> Parser<'a> {
@@ -21,6 +22,7 @@ impl<'a> Parser<'a> {
             tokens,
             curr: 0,
             error_handler: LoxErrorHandler::new(),
+            current_token: None,
         }
     }
 
@@ -300,8 +302,23 @@ impl<'a> Parser<'a> {
         is_private: bool,
         is_static: bool,
     ) -> Result<(), LoxResult> {
+        let prev = self.previous();
         if self.match_single_token(TokenType::Identifier) {
             let name = self.previous();
+            if name.lexeme == "init"
+                && matches!(
+                    prev.token_type,
+                    TokenType::Private | TokenType::Public | TokenType::Static
+                )
+            {
+                return Err(self.error_handler.error(
+                    &name,
+                    LoxErrorsTypes::Syntax(format!(
+                        "'init' is reserved for class construction cannot make '{}'",
+                        prev.lexeme
+                    )),
+                ));
+            }
             if self.check(TokenType::LeftParen) {
                 methods.push(self.function(Some(name), "method", is_static, !is_private)?);
                 return Ok(());
@@ -493,6 +510,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.match_single_token(TokenType::Identifier) {
+            self.current_token = Some(self.previous());
             return Ok(Rc::new(Expr::Variable(VariableExpr::new(self.previous()))));
         }
 
@@ -776,6 +794,22 @@ impl<'a> Parser<'a> {
                         token,
                     ))));
                 }
+                Expr::Index(ind) => {
+                    if self.current_token.is_none() {
+                        return Err(self.error_handler.error(
+                            &token,
+                            LoxErrorsTypes::Syntax("Unexpected token".to_string()),
+                        ));
+                    }
+                    return Ok(Rc::new(Expr::UpdateIndex(UpdateIndexExpr::new(
+                        self.current_token.as_ref().unwrap().dup(),
+                        ind.identifier.clone(),
+
+                        ind.bracket.dup(),
+                        ind.index.clone(),
+                        value,
+                    ))));
+                }
                 _ => {
                     return Err(self.error_handler.error(
                         &token,
@@ -819,7 +853,7 @@ impl<'a> Parser<'a> {
                     return Ok(Rc::new(Expr::CompoundAssign(CompoundAssignExpr::new(
                         name, token, value,
                     ))));
-                },
+                }
 
                 Expr::Get(prop) => {
                     return Ok(Rc::new(Expr::Set(SetExpr::new(

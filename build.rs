@@ -17,6 +17,7 @@ fn main() -> io::Result<()> {
         "Lambda ; params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>".to_string(),
         "Array ; arr: Vec<Rc<Expr>>".to_string(),
         "Index ; identifier: Rc<Expr>, bracket: Token, index: Rc<Expr>".to_string(),
+        "UpdateIndex ; name: Token, identifier: Rc<Expr>, bracket: Token, index: Rc<Expr>, value: Rc<Expr>".to_string(),
         "Get ; object: Rc<Expr>, name: Token".to_string(),
         "Set ; object: Rc<Expr>, name: Token, value: Rc<Expr>, operator: Token".to_string(),
         "Update ; var: Rc<Expr>, operator: Token, prefix: bool".to_string(),

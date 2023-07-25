@@ -10,7 +10,7 @@ use crate::{
 };
 use std::{
     cell::RefCell,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Sub}
 };
 use std::{collections::HashMap, rc::Rc};
 
@@ -209,6 +209,21 @@ impl Interpreter {
         }
     }
 
+    fn env_mutate_at(&self, wrapper: Rc<Expr>, name: &Token, val: Literal) -> Result<(), LoxResult> {
+        if let Some(dist) = self.locals.borrow().get(&wrapper) {
+            self.environment.borrow().borrow_mut().mutate_at(
+                *dist,
+                name,
+                val
+            )?;
+        } else {
+            self.globals
+                .borrow_mut()
+                .mutate(name, val)?;
+        }
+        Ok(())
+    }
+
     fn operate_compound_set(
         &self,
         operator: &Token,
@@ -237,9 +252,7 @@ impl Interpreter {
                     return Ok(val);
                 }
             }
-            TokenType::Assign => {
-                return Ok(b)
-            }
+            TokenType::Assign => return Ok(b),
             _ => {
                 return Err(self.error_handler.error(
                     operator,
@@ -251,6 +264,41 @@ impl Interpreter {
         Err(self
             .error_handler
             .error(operator, LoxErrorsTypes::Syntax("".to_string())))
+    }
+
+    fn check_index(&self, bracket: &Token, index: &Literal) -> Result<isize, LoxResult> {
+        if index.get_typename() != "Number" {
+            return Err(self.error_handler.error(
+                bracket,
+                LoxErrorsTypes::Runtime("Can only index arrays with numbers".to_string()),
+            ));
+        }
+        Ok(index.unwrap_number() as isize)
+    }
+
+    fn check_index_bounds(
+        &self,
+        bracket: &Token,
+        index: isize,
+        len: isize,
+    ) -> Result<usize, LoxResult> {
+        if index >= len {
+            return Err(self.error_handler.error(
+                bracket,
+                LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
+            ));
+        }
+
+        if index < 0 {
+            if len + index < 0 {
+                return Err(self.error_handler.error(
+                    bracket,
+                    LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
+                ));
+            }
+            return Ok((len + index) as usize);
+        }
+        Ok(index as usize)
     }
 
     pub fn set_is_repl(&mut self, is: bool) {
@@ -326,6 +374,10 @@ impl Interpreter {
             if let Err(val) = self.execute(stmt.clone()) {
                 match val {
                     LoxResult::Return(_) => {
+                        self.environment.replace(prev);
+                        return Err(val);
+                    }
+                    LoxResult::Break => {
                         self.environment.replace(prev);
                         return Err(val);
                     }
@@ -607,31 +659,12 @@ impl VisitorExpr<Literal> for Interpreter {
         let literal = self.evaluate(expr.identifier.clone())?;
         let index = self.evaluate(expr.index.clone())?;
         if let Literal::Array(arr) = literal {
-            if index.get_typename() != "Number" {
-                return Err(self.error_handler.error(
-                    &expr.bracket,
-                    LoxErrorsTypes::Runtime("Can only index arrays with numbers".to_string()),
-                ));
-            }
-
-            let num = index.unwrap_number() as isize;
+            let num = self.check_index(&expr.bracket, &index)?;
             let len = arr.len() as isize;
-            if num > len {
-                return Err(self.error_handler.error(
-                    &expr.bracket,
-                    LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
-                ));
-            }
-            if num < 0 {
-                if len + num < 0 {
-                    return Err(self.error_handler.error(
-                        &expr.bracket,
-                        LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
-                    ));
-                }
-                return Ok(arr.get((len + num) as usize).unwrap().dup());
-            }
-            Ok(arr.get(num as usize).unwrap().dup())
+            return Ok(arr
+                .get(self.check_index_bounds(&expr.bracket, num, len)?)
+                .unwrap()
+                .dup());
         } else if let Literal::Str(str) = literal {
             if index.get_typename() != "Number" {
                 return Err(self.error_handler.error(
@@ -639,32 +672,18 @@ impl VisitorExpr<Literal> for Interpreter {
                     LoxErrorsTypes::Runtime("Can only index arrays with numbers".to_string()),
                 ));
             }
-            let num = index.unwrap_number() as isize;
+            let num = self.check_index(&expr.bracket, &index)?;
             let len = str.len() as isize;
-            if num > len {
-                return Err(self.error_handler.error(
-                    &expr.bracket,
-                    LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
-                ));
-            }
-            if num < 0 {
-                if len + num < 0 {
-                    return Err(self.error_handler.error(
-                        &expr.bracket,
-                        LoxErrorsTypes::Runtime("Index out of bounds".to_string()),
-                    ));
-                }
-                let string = *str.as_bytes().get((len + num) as usize).unwrap() as char;
-                return Ok(Literal::Str(string.to_string()));
-            }
-            let string = *str.as_bytes().get(num as usize).unwrap() as char;
-            Ok(Literal::Str(string.to_string()))
-        } else {
-            Err(self.error_handler.error(
-                &expr.bracket,
-                LoxErrorsTypes::Runtime("Can only index arrays".to_string()),
-            ))
+            let string = *str
+                .as_bytes()
+                .get(self.check_index_bounds(&expr.bracket, num, len)?)
+                .unwrap() as char;
+            return Ok(Literal::Str(string.to_string()));
         }
+        Err(self.error_handler.error(
+            &expr.bracket,
+            LoxErrorsTypes::Runtime("Can only index arrays".to_string()),
+        ))
     }
 
     fn visit_get_expr(&self, _: Rc<Expr>, expr: &GetExpr, _: u16) -> Result<Literal, LoxResult> {
@@ -752,7 +771,7 @@ impl VisitorExpr<Literal> for Interpreter {
         expr: &ThisExpr,
         _: u16,
     ) -> Result<Literal, LoxResult> {
-        let obj = self.look_up_variable(&expr.keyword, &wrapper)?;
+        let obj = self.look_up_variable(&expr.keyword, &wrapper.clone())?;
         match obj {
             Literal::Instance(inst) => {
                 *inst.this.borrow_mut() = true;
@@ -764,6 +783,36 @@ impl VisitorExpr<Literal> for Interpreter {
             _ => {
                 panic!("found non instance this_expr {obj}")
             }
+        }
+    }
+
+    fn visit_updateindex_expr(
+        &self,
+        wrapper: Rc<Expr>,
+        expr: &UpdateIndexExpr,
+        _: u16,
+    ) -> Result<Literal, LoxResult> {
+        let mut literal = self.evaluate(expr.identifier.clone())?;
+        let value = self.evaluate(expr.value.clone())?;
+        let index = self.evaluate(expr.index.clone())?;
+
+        match &mut literal {
+            Literal::Array(arr) => {
+                let num = self.check_index(&expr.bracket, &index)?;
+                let len = arr.len() as isize;
+                let new_index = self.check_index_bounds(&expr.bracket, num, len)?;
+                let _ = std::mem::replace(&mut arr[new_index], value.dup());
+                self.env_mutate_at(wrapper, &expr.name, Literal::Array(arr.clone()))?;
+                return Ok(Literal::Array(arr.clone()));
+            }
+            Literal::Str(_) => Err(self.error_handler.error(
+                &expr.bracket,
+                LoxErrorsTypes::Type("'String' does not support item assignment".to_string()),
+            )),
+            _ => Err(self.error_handler.error(
+                &expr.bracket,
+                LoxErrorsTypes::Syntax("Expression is not assignable".to_string()),
+            )),
         }
     }
 }
@@ -794,6 +843,7 @@ impl VisitorStmt<()> for Interpreter {
         } else {
             Literal::LiteralNone
         };
+        
         self.environment
             .borrow_mut()
             .borrow_mut()
@@ -868,9 +918,10 @@ impl VisitorStmt<()> for Interpreter {
     }
 
     fn visit_for_stmt(&self, _: Rc<Stmt>, stmt: &ForStmt, _: u16) -> Result<(), LoxResult> {
-        if stmt.var.is_some() {
-            self.execute(stmt.var.as_ref().unwrap().clone())?;
+        if let Some(var) = &stmt.var {
+            self.execute(var.clone())?;
         }
+        
 
         if stmt.condition.is_some() {
             while self.is_truthy(&self.evaluate(stmt.condition.as_ref().unwrap().clone())?) {
@@ -972,8 +1023,8 @@ impl VisitorStmt<()> for Interpreter {
 
     fn visit_field_stmt(
         &self,
-        wrapper: Rc<Stmt>,
-        stmt: &FieldStmt,
+        _: Rc<Stmt>,
+        _: &FieldStmt,
         _: u16,
     ) -> Result<(), LoxResult> {
         Ok(())

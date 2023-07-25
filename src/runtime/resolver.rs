@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, borrow::Borrow};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -141,11 +141,18 @@ impl<'a> Resolver<'a> {
         self.scopes.borrow_mut().pop();
     }
 
+    fn print_scopes(&self) {
+        for (i, scope) in self.scopes.borrow().iter().enumerate() {
+            println!("{i}, {:?}", scope.borrow().keys());
+        }
+    }
+
     pub fn resolve(&self, statements: &Vec<Rc<Stmt>>) -> Result<(), LoxResult> {
         for statement in statements {
             self.resolve_statement(statement.clone())?;
         }
         self.check_unused();
+        // self.print_scopes();
         Ok(())
     }
 
@@ -206,7 +213,7 @@ impl<'a> Resolver<'a> {
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
         for (i, scope) in self.scopes.borrow().iter().rev().enumerate() {
             if scope.borrow().contains_key(&name.lexeme) {
-                self.interpreter.resolve(expr.clone(), i);
+                self.interpreter.resolve(expr.clone(),  i);
                 return;
             }
         }
@@ -363,6 +370,13 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         self.resolve_local(wrapper.clone(), &expr.keyword);
         Ok(())
     }
+
+    fn visit_updateindex_expr(&self, _: Rc<Expr>, expr: &UpdateIndexExpr, _: u16) -> Result<(), LoxResult> {
+        self.resolve_expr(expr.identifier.clone())?;
+        self.resolve_expr(expr.value.clone())?;
+        self.resolve_expr(expr.index.clone())?;
+        Ok(())
+    }
 }
 
 impl<'a> VisitorStmt<()> for Resolver<'a> {
@@ -390,6 +404,7 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         if let Some(var) = &stmt.var {
             self.resolve_statement(var.clone())?;
         }
+
         if let Some(condition) = &stmt.condition {
             self.resolve_expr(condition.clone())?;
         }
@@ -534,7 +549,6 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
                     self.resolve_function(&*f, fn_type)?;
                 }
                 _ => {
-                    println!("{method:?}\n\n\n");
                     panic!("Unexpected statement parsed {method:?}")
                 }
             }
@@ -544,7 +558,7 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_field_stmt(&self, wrapper: Rc<Stmt>, stmt: &FieldStmt, _: u16) -> Result<(), LoxResult> {
+    fn visit_field_stmt(&self, _: Rc<Stmt>, _: &FieldStmt, _: u16) -> Result<(), LoxResult> {
         Ok(())
     }
 }

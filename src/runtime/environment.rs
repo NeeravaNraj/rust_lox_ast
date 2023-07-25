@@ -9,7 +9,7 @@ use crate::{
 pub struct Environment {
     pub continue_encountered: bool,
     pub id: usize,
-    env: HashMap<String, Literal>,
+    pub env: HashMap<String, Literal>,
     natives: HashMap<String, ()>,
     error_handler: LoxErrorHandler,
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -109,10 +109,12 @@ impl Environment {
     }
 
     pub fn get_at(&self, distance: usize, name: &Token) -> Result<Literal, LoxResult> {
+        // println!("{} {}", name.lexeme, name.line);
         if distance == 0 {
             if let Some(var) = self.env.get(&name.lexeme) {
-                return Ok(var.dup())
+                return Ok(var.dup());
             }
+            println!("{:?}", self.env.keys());
             return Err(self.error_handler.error(
                 name, 
                 LoxErrorsTypes::ReferenceError("Undefined variable".to_string())

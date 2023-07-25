@@ -1,27 +1,39 @@
-class User {
-    private password;
-    private tries;
-    public name;
+class Array {
+    private arr;
+    private length;
 
-    init(name, password) {
-        this.name = name;
-        this.password = password;
-        this.tries = 3;
+    init() {
+        this.arr = [];
+        this.length = 0;
     }
 
-    public login(password) {
-        if (this.password == password) {
-            print "Welcome " + this.name + "!";
-        } else {
-            if (this.tries == 0) {
-                print "You ran out of login attempts!";
-            } else {
-                this.tries -= 1;
-                print "Wrong password please try again";
-            }
-        }
+    public push(item) {
+        this.arr[this.length] = item;
+        this.length += 1;
+    }
+
+    public pop() {
+        let item = this.arr[this.length];
+        this.length -= 1;
+        return item;
+    }
+
+    public display() {
+        print this.arr;
+    }
+
+    public len() {
+        return this.length;
+    }
+
+    public get(index) {
+        return this.arr[index];
     }
 }
 
-let raghu = User("Raghu", "1234");
-raghu.login("1234");
+let a = Array();
+a.push(1);
+a.push(2);
+a.push(3);
+a.display();
+print a.len();
