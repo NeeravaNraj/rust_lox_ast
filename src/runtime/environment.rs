@@ -7,9 +7,8 @@ use crate::{
 };
 #[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
-    pub continue_encountered: bool,
     pub id: usize,
-    pub env: HashMap<String, Literal>,
+    env: HashMap<String, Literal>,
     natives: HashMap<String, ()>,
     error_handler: LoxErrorHandler,
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -21,7 +20,6 @@ impl Environment {
             env: HashMap::new(),
             error_handler: LoxErrorHandler::new(),
             enclosing: None,
-            continue_encountered: false,
             natives: HashMap::new(),
             id: 0,
         }
@@ -33,7 +31,6 @@ impl Environment {
             env: HashMap::new(),
             error_handler: LoxErrorHandler::new(),
             enclosing: Some(env),
-            continue_encountered: false,
             natives: HashMap::new(),
             id,
         }

@@ -149,5 +149,6 @@ pub enum LoxResult {
     Error(LoxError),
     Warning(LoxWarning),
     Break,
+    Continue,
     Return(Literal),
 }

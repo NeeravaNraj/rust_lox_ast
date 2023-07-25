@@ -1,4 +1,4 @@
-use std::{cell::RefCell, borrow::Borrow};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -141,11 +141,11 @@ impl<'a> Resolver<'a> {
         self.scopes.borrow_mut().pop();
     }
 
-    fn print_scopes(&self) {
-        for (i, scope) in self.scopes.borrow().iter().enumerate() {
-            println!("{i}, {:?}", scope.borrow().keys());
-        }
-    }
+    // fn print_scopes(&self) {
+    //     for (i, scope) in self.scopes.borrow().iter().enumerate() {
+    //         println!("{i}, {:?}", scope.borrow().keys());
+    //     }
+    // }
 
     pub fn resolve(&self, statements: &Vec<Rc<Stmt>>) -> Result<(), LoxResult> {
         for statement in statements {

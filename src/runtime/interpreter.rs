@@ -10,7 +10,7 @@ use crate::{
 };
 use std::{
     cell::RefCell,
-    ops::{Add, Div, Mul, Sub}
+    ops::{Add, Div, Mul, Sub},
 };
 use std::{collections::HashMap, rc::Rc};
 
@@ -209,17 +209,19 @@ impl Interpreter {
         }
     }
 
-    fn env_mutate_at(&self, wrapper: Rc<Expr>, name: &Token, val: Literal) -> Result<(), LoxResult> {
+    fn env_mutate_at(
+        &self,
+        wrapper: Rc<Expr>,
+        name: &Token,
+        val: Literal,
+    ) -> Result<(), LoxResult> {
         if let Some(dist) = self.locals.borrow().get(&wrapper) {
-            self.environment.borrow().borrow_mut().mutate_at(
-                *dist,
-                name,
-                val
-            )?;
-        } else {
-            self.globals
+            self.environment
+                .borrow()
                 .borrow_mut()
-                .mutate(name, val)?;
+                .mutate_at(*dist, name, val)?;
+        } else {
+            self.globals.borrow_mut().mutate(name, val)?;
         }
         Ok(())
     }
@@ -366,14 +368,13 @@ impl Interpreter {
     ) -> Result<(), LoxResult> {
         let prev = self.environment.replace(Rc::new(RefCell::new(enclosing)));
         for stmt in stmts {
-            if self.environment.borrow().borrow().continue_encountered {
-                prev.borrow_mut().continue_encountered =
-                    self.environment.borrow().borrow().continue_encountered;
-                break;
-            }
             if let Err(val) = self.execute(stmt.clone()) {
                 match val {
                     LoxResult::Return(_) => {
+                        self.environment.replace(prev);
+                        return Err(val);
+                    }
+                    LoxResult::Continue => {
                         self.environment.replace(prev);
                         return Err(val);
                     }
@@ -843,7 +844,7 @@ impl VisitorStmt<()> for Interpreter {
         } else {
             Literal::LiteralNone
         };
-        
+
         self.environment
             .borrow_mut()
             .borrow_mut()
@@ -873,11 +874,9 @@ impl VisitorStmt<()> for Interpreter {
                 match e {
                     LoxResult::Error(error) => return Err(LoxResult::Error(error)),
                     LoxResult::Break => break,
+                    LoxResult::Continue => continue,
                     _ => {}
                 }
-            }
-            if self.environment.borrow().borrow().continue_encountered {
-                self.environment.borrow().borrow_mut().continue_encountered = false;
             }
         }
         Ok(())
@@ -888,8 +887,7 @@ impl VisitorStmt<()> for Interpreter {
     }
 
     fn visit_continue_stmt(&self, _: Rc<Stmt>, _: &ContinueStmt, _: u16) -> Result<(), LoxResult> {
-        self.environment.borrow().borrow_mut().continue_encountered = true;
-        Ok(())
+        Err(LoxResult::Continue)
     }
 
     fn visit_function_stmt(
@@ -921,7 +919,6 @@ impl VisitorStmt<()> for Interpreter {
         if let Some(var) = &stmt.var {
             self.execute(var.clone())?;
         }
-        
 
         if stmt.condition.is_some() {
             while self.is_truthy(&self.evaluate(stmt.condition.as_ref().unwrap().clone())?) {
@@ -929,14 +926,14 @@ impl VisitorStmt<()> for Interpreter {
                     match e {
                         LoxResult::Error(error) => return Err(LoxResult::Error(error)),
                         LoxResult::Break => break,
+                        LoxResult::Continue => {
+                            if stmt.update_expr.is_some() {
+                                self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
+                            }
+                            continue;
+                        }
                         _ => {}
                     }
-                }
-                if self.environment.borrow().borrow().continue_encountered {
-                    if stmt.update_expr.is_some() {
-                        self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
-                    }
-                    continue;
                 }
                 if stmt.update_expr.is_some() {
                     self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
@@ -947,15 +944,15 @@ impl VisitorStmt<()> for Interpreter {
                 if let Err(e) = self.execute(stmt.body.clone()) {
                     match e {
                         LoxResult::Error(error) => return Err(LoxResult::Error(error)),
+                        LoxResult::Continue => {
+                            if stmt.update_expr.is_some() {
+                                self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
+                            }
+                            continue;
+                        }
                         LoxResult::Break => break,
                         _ => {}
                     }
-                }
-                if self.environment.borrow().borrow().continue_encountered {
-                    if stmt.update_expr.is_some() {
-                        self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
-                    }
-                    continue;
                 }
                 if stmt.update_expr.is_some() {
                     self.evaluate(stmt.update_expr.as_ref().unwrap().clone())?;
@@ -1021,12 +1018,7 @@ impl VisitorStmt<()> for Interpreter {
         Ok(())
     }
 
-    fn visit_field_stmt(
-        &self,
-        _: Rc<Stmt>,
-        _: &FieldStmt,
-        _: u16,
-    ) -> Result<(), LoxResult> {
+    fn visit_field_stmt(&self, _: Rc<Stmt>, _: &FieldStmt, _: u16) -> Result<(), LoxResult> {
         Ok(())
     }
 }
