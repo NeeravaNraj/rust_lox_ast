@@ -1,36 +1,160 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
     "name": "Lox Programming Language",
-    "patterns": [
-        {
-            "include": "#declaration"
-        },
-        {
-            "include": "#control-statement"
-        },
-        {
-            "include": "#after-operator-block-as-object-literal"
-        },
-        {
-            "include": "#decl-block"
-        },
-        {
-            "include": "#label"
-        },
-        {
-            "include": "#expression"
-        },
-        {
-            "include": "#punctuation-semicolon"
-        },
-        {
-            "include": "#string"
-        },
-        {
-            "include": "#comment"
-        }
-    ],
-    "repository": {
-    },
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#block_comment"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#statements"
+		},
+		{
+			"include": "#callables"
+		},
+		{
+			"include": "#ident"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#digits"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.lox",
+					"match": "\\b(if|elif|else|while|for|return|and|or|break|continue)\\b"
+				},
+				{
+					"name": "constant.language.null.lox",
+					"match": "\\b(none)\\b"
+				},
+				{
+					"name": "constant.language.boolean.lox",
+					"match": "\\b(true|false|fn|lm|static|public|private|typeof)\\b"
+				},
+				{
+					"name": "support.class.lox",
+					"match": "\\b(Array|Str|Num)\\b"
+				},
+				{
+					"name": "variable.language.this.lox",
+					"match": "\\b(this)\\b"
+				},
+				{
+					"name": "variable.language.super.lox",
+					"match": "\\b(super)\\b"
+				}
+			]
+		},
+		"statements": {
+			"patterns": [
+				{
+					"match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.lox"
+						},
+						"2": {
+							"name": "support.variable.lox"
+						}
+					}
+				},
+				{
+					"match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(([A-Za-z0-9_,\\s]*)\\)",
+					"captures": {
+						"1": {
+							"name":"storage.type.function.lox"
+						},
+						"2": {
+							"name":"entity.name.function.lox"
+						},
+						"3": {
+							"patterns": [
+								{
+									"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b",
+									"name": "variable.parameter.lox"
+								}
+							]
+						}
+					}
+				},
+				{
+					"match": "\\b(class)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(<)\\s*([A-Za-z_][A-Za-z0-9_]*))?\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.class.lox"
+						},
+						"2": {
+							"name": "entity.name.type.class.lox"
+						},
+						"3": {
+							"name": "storage.modifier.lox"
+						},
+						"4": {
+							"name": "entity.name.type.class.lox"
+						}
+					}
+				}
+			]
+		},
+		"callables": {
+			"patterns": [
+				{
+					"match": "([A-Za-z_][A-Za-z0-9_]*)\\(",
+					"name": "support.function.lox"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.lox",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": []
+		},
+		"digits": {
+			"patterns": [
+				{
+					"name": "constant.numeric.lox",
+					"match": "\\b[0-9]+(?:.[0-9]+)?\\b"
+				}
+			]
+		},
+		"ident": {
+			"patterns": [
+				{
+					"name": "variable.other.readwrite.lox",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.double-slash.lox",
+					"match": "\\/\\/.*"
+				}
+			]
+		},
+		"block_comment": {
+			"name": "comment.block.lox",
+			"begin": "\/\\*",
+			"end": "\\*\/",
+			"patterns": [
+				{
+					"include": "#block_comment"
+				}
+			]
+		}
+	},
     "scopeName": "source.lox"
 }
