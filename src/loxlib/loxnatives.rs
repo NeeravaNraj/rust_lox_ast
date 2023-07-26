@@ -1,42 +1,21 @@
-use std::time::SystemTime;
-use std::{rc::Rc, fmt::{Debug, Display}};
-
-use crate::{
-    error::*, lexer::literal::Literal, runtime::callable::LoxCallable,
-    runtime::interpreter::Interpreter,
+use crate::runtime::callable::LoxCallable;
+use std::{
+    fmt::{Debug, Display},
+    rc::Rc,
 };
-
-pub struct Clock;
-
-impl LoxCallable for Clock {
-    fn arity(&self) -> usize {
-        0
-    }
-
-    fn call(&self, _interpreter: &Interpreter, _args: Vec<Literal>) -> Result<Literal, LoxResult> {
-        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-            Ok(time) => Ok(Literal::Number(time.as_secs_f64())),
-            Err(err) => Err(LoxResult::Error(LoxError::system_error(
-                format!(
-                    "Clock return invalid duration: {}",
-                    err.duration().as_secs_f64()
-                )
-                .as_str(),
-            ))),
-        }
-    }
-}
 
 pub struct LoxNative {
     pub name: String,
     pub native: Rc<dyn LoxCallable>,
+    pub check_arity: bool,
 }
 
 impl LoxNative {
-    pub fn new(name: &str, native: Rc<dyn LoxCallable>) -> Self {
+    pub fn new(name: &str, native: Rc<dyn LoxCallable>, check_arity: bool) -> Self {
         Self {
             name: name.to_string(),
-            native
+            native,
+            check_arity,
         }
     }
 }

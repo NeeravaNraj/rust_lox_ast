@@ -34,7 +34,6 @@ fn main() -> io::Result<()> {
 
     let stmt_type = vec![
         "Expression ; expr: Rc<Expr>".to_string(),
-        "Print ; expr: Rc<Expr>".to_string(),
         "Let ; name: Token, initializer: Option<Rc<Expr>>".to_string(),
         "Block ; statements: Vec<Rc<Stmt>>".to_string(),
         "If ; condition: Rc<Expr>, then_branch: Rc<Stmt>, else_branch: Option<Rc<Stmt>>".to_string(),

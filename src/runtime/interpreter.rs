@@ -1,11 +1,11 @@
 use super::{
     callable::LoxCallable, environment::Environment, loxclass::LoxClass, loxfunction::LoxFunction,
-    loxinstance::InstanceField,
+    loxinstance::InstanceField, load::load,
 };
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
     lexer::{literal::*, token::*, tokentype::TokenType},
-    loxlib::{loxnatives::Clock, loxnatives::LoxNative},
+    loxlib::array::loxarray::LoxArray,
     parser::{expr::*, stmt::*},
 };
 use std::{
@@ -27,10 +27,7 @@ impl Interpreter {
     pub fn new() -> Self {
         let globals = Rc::new(RefCell::new(Environment::new()));
 
-        if let Err(LoxResult::Error(e)) = globals.borrow_mut().define_native(
-            &Token::new(TokenType::DefFn, "clock".to_string(), None, 0),
-            Literal::Native(Rc::new(LoxNative::new("clock", Rc::new(Clock {})))),
-        ) {
+        if let Err(LoxResult::Error(e)) = load(globals.clone()) {
             LoxError::report(&e);
         }
         Self {
@@ -592,7 +589,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                func.call(self, args)
+                func.call(Some(self), args)
             }
             Literal::Class(class) => {
                 if args.len() != class.arity() {
@@ -605,10 +602,10 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                class.call(self, args)
+                class.call(Some(self), args)
             }
             Literal::Native(func) => {
-                if args.len() != func.native.arity() {
+                if func.check_arity && args.len() != func.native.arity() {
                     return Err(self.error_handler.error(
                         &expr.paren,
                         LoxErrorsTypes::Runtime(format!(
@@ -618,7 +615,20 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                func.native.call(self, args)
+                match func.native.call(Some(self), args) {
+                    Ok(val) => return Ok(val),
+                    Err(result) => {
+                        match result {
+                            LoxResult::Message(msg) => {
+                                return Err(self.error_handler.error(
+                                    &expr.paren, 
+                                    LoxErrorsTypes::Runtime(msg)
+                                ))
+                            }
+                            _ => return Err(result)
+                        }
+                    }
+                }
             }
             _ => Err(self.error_handler.error(
                 &expr.paren,
@@ -648,7 +658,7 @@ impl VisitorExpr<Literal> for Interpreter {
             arr.push(self.evaluate(val.clone())?);
         }
 
-        Ok(Literal::Array(arr))
+        Ok(Literal::Array(Rc::new(LoxArray::new(arr))))
     }
 
     fn visit_index_expr(
@@ -661,8 +671,8 @@ impl VisitorExpr<Literal> for Interpreter {
         let index = self.evaluate(expr.index.clone())?;
         if let Literal::Array(arr) = literal {
             let num = self.check_index(&expr.bracket, &index)?;
-            let len = arr.len() as isize;
-            return Ok(arr
+            let len = arr.array.borrow().len() as isize;
+            return Ok(arr.array.borrow()
                 .get(self.check_index_bounds(&expr.bracket, num, len)?)
                 .unwrap()
                 .dup());
@@ -692,6 +702,7 @@ impl VisitorExpr<Literal> for Interpreter {
         match object {
             Literal::Instance(i) => return Ok(i.get(&expr.name, &i)?),
             Literal::Class(c) => return Ok(c.get(&expr.name, &c)?),
+            Literal::Array(a) => return Ok(a.get(&expr.name)?),
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
@@ -800,9 +811,9 @@ impl VisitorExpr<Literal> for Interpreter {
         match &mut literal {
             Literal::Array(arr) => {
                 let num = self.check_index(&expr.bracket, &index)?;
-                let len = arr.len() as isize;
+                let len = arr.array.borrow().len() as isize;
                 let new_index = self.check_index_bounds(&expr.bracket, num, len)?;
-                let _ = std::mem::replace(&mut arr[new_index], value.dup());
+                let _ = std::mem::replace(&mut arr.array.borrow_mut()[new_index], value.dup());
                 self.env_mutate_at(wrapper, &expr.name, Literal::Array(arr.clone()))?;
                 return Ok(Literal::Array(arr.clone()));
             }
@@ -819,12 +830,6 @@ impl VisitorExpr<Literal> for Interpreter {
 }
 
 impl VisitorStmt<()> for Interpreter {
-    fn visit_print_stmt(&self, _: Rc<Stmt>, stmt: &PrintStmt, _: u16) -> Result<(), LoxResult> {
-        let value = self.evaluate(stmt.expr.clone())?;
-        value.print_value();
-        Ok(())
-    }
-
     fn visit_expression_stmt(
         &self,
         _: Rc<Stmt>,

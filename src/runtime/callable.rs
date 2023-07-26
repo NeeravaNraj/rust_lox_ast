@@ -8,7 +8,7 @@ use crate::{error::*, lexer::literal::Literal};
 
 pub trait LoxCallable {
     fn arity(&self) -> usize;
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult>;
+    fn call(&self, interpreter: Option<&Interpreter>, args: Vec<Literal>) -> Result<Literal, LoxResult>;
 }
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct Callable {
 }
 
 impl LoxCallable for Callable {
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
+    fn call(&self, interpreter: Option<&Interpreter>, args: Vec<Literal>) -> Result<Literal, LoxResult> {
         self.func.call(interpreter, args)
     }
 

@@ -34,11 +34,7 @@ impl LoxInstance {
         }
     }
 
-    pub fn get(
-        &self,
-        name: &Token,
-        this: &Rc<LoxInstance>,
-    ) -> Result<Literal, LoxResult> {
+    pub fn get(&self, name: &Token, this: &Rc<LoxInstance>) -> Result<Literal, LoxResult> {
         if self.fields.borrow().contains_key(&name.lexeme) {
             if !(self
                 .fields
@@ -59,26 +55,28 @@ impl LoxInstance {
         }
 
         if let Some(m) = self.klass.find_method(&name.lexeme) {
-            if let Literal::Func(method) = m {
-                if method.is_static {
-                    return Err(self.error_handler.error(
-                        name,
-                        LoxErrorsTypes::Runtime(
-                            "Cannot call static method from instantiated class".to_string(),
-                        ),
-                    ));
+            match m {
+                Literal::Func(method) => {
+                    if method.is_static {
+                        return Err(self.error_handler.error(
+                            name,
+                            LoxErrorsTypes::Runtime(
+                                "Cannot call static method from instantiated class".to_string(),
+                            ),
+                        ));
+                    }
+                    if !(method.is_pub || self.this.borrow().eq(&true)) {
+                        return Err(self.error_handler.error(
+                            name,
+                            LoxErrorsTypes::Runtime("Cannot call private method".to_string()),
+                        ));
+                    }
+                    return Ok(Literal::Func(method.bind(this.clone())?))
                 }
-                if !(method.is_pub || self.this.borrow().eq(&true)) {
-                    return Err(self.error_handler.error(
-                        name,
-                        LoxErrorsTypes::Runtime(
-                            "Cannot call private method".to_string(),
-                        ),
-                    ));
+                Literal::Native(method) =>  return Ok(Literal::Native(method.clone())),
+                _ => {
+                    panic!("tried to bind 'this' to non function literal {m:?}")
                 }
-                return Ok(Literal::Func(method.bind(this.clone())?));
-            } else {
-                panic!("tried to bind 'this' to non function literal {m:?}")
             }
         }
 

@@ -324,7 +324,6 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("while"), TokenType::While);
         hmap.insert(String::from("none"), TokenType::None);
         hmap.insert(String::from("let"), TokenType::Let);
-        hmap.insert(String::from("print"), TokenType::Print);
         hmap.insert(String::from("return"), TokenType::Return);
         hmap.insert(String::from("super"), TokenType::Super);
         hmap.insert(String::from("this"), TokenType::This);

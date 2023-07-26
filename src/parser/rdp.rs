@@ -147,15 +147,6 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
-    fn print_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
-        let expr = self.expression()?;
-        self.consume(
-            TokenType::Semicolon,
-            LoxErrorsTypes::Syntax("Expected ';' after".to_string()),
-        )?;
-        Ok(Rc::new(Stmt::Print(PrintStmt::new(expr))))
-    }
-
     fn expr_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
         let expr = self.expression()?;
         self.consume(
@@ -362,7 +353,6 @@ impl<'a> Parser<'a> {
         let mut fields: Vec<Rc<Stmt>> = Vec::new();
         let mut methods: Vec<Rc<Stmt>> = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            // println!("{fields:?}");
             if self.match_single_token(TokenType::Public) {
                 self.class_field(&mut methods, &mut fields, false, false)?;
             } else if self.match_single_token(TokenType::Private) {
@@ -383,10 +373,6 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
-        if self.match_single_token(TokenType::Print) {
-            return self.print_statement();
-        }
-
         if self.match_single_token(TokenType::LeftBrace) {
             return Ok(Rc::new(Stmt::Block(BlockStmt::new(self.block_stmt()?))));
         }
@@ -418,6 +404,7 @@ impl<'a> Parser<'a> {
         if self.match_single_token(TokenType::Class) {
             return self.class_statement();
         }
+
         self.expr_statement()
     }
 
@@ -558,6 +545,7 @@ impl<'a> Parser<'a> {
             ));
         }
 
+        // panic!("ohad");
         Err(self.error_handler.error(
             &self.previous(),
             LoxErrorsTypes::Syntax("Expected expression after".to_string()),
@@ -938,7 +926,6 @@ impl<'a> Parser<'a> {
                 | TokenType::If
                 | TokenType::Else
                 | TokenType::Return
-                | TokenType::Print
                 | TokenType::While => return,
                 _ => (),
             };

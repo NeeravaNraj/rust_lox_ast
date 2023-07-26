@@ -106,7 +106,6 @@ impl Environment {
     }
 
     pub fn get_at(&self, distance: usize, name: &Token) -> Result<Literal, LoxResult> {
-        // println!("{} {}", name.lexeme, name.line);
         if distance == 0 {
             if let Some(var) = self.env.get(&name.lexeme) {
                 return Ok(var.dup());

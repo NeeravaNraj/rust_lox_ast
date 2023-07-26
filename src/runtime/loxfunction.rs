@@ -1,6 +1,6 @@
 use super::{
-    callable::LoxCallable, environment::Environment, interpreter::Interpreter,
-    loxinstance::LoxInstance, loxclass::LoxClass,
+    callable::LoxCallable, environment::Environment, interpreter::Interpreter, loxclass::LoxClass,
+    loxinstance::LoxInstance,
 };
 use crate::{
     error::*,
@@ -36,7 +36,7 @@ impl LoxFunction {
             closure: Rc::clone(env),
             is_initializer,
             is_static,
-            is_pub
+            is_pub,
         }
     }
 
@@ -62,7 +62,7 @@ impl LoxFunction {
             closure: Rc::new(RefCell::new(env)),
             is_initializer: self.is_initializer,
             is_static: self.is_static,
-            is_pub: self.is_pub
+            is_pub: self.is_pub,
         }))
     }
 
@@ -76,7 +76,7 @@ impl LoxFunction {
             closure: Rc::new(RefCell::new(env)),
             is_initializer: self.is_initializer,
             is_static: self.is_static,
-            is_pub: self.is_pub
+            is_pub: self.is_pub,
         }))
     }
 }
@@ -91,14 +91,21 @@ impl Display for LoxFunction {
 }
 
 impl LoxCallable for LoxFunction {
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
+    fn call(
+        &self,
+        interpreter: Option<&Interpreter>,
+        args: Vec<Literal>,
+    ) -> Result<Literal, LoxResult> {
         let mut env = Environment::new_enclosing(self.closure.clone());
         for (i, d) in self.params.iter().enumerate() {
             if let Some(val) = args.get(i) {
                 env.define(d, val.dup())?;
             }
         }
-        if let Err(ret_val) = interpreter.execute_block(&self.body, env) {
+        if let Err(ret_val) = interpreter
+            .expect("Interpreter was not provided for LoxFunction")
+            .execute_block(&self.body, env)
+        {
             match ret_val {
                 LoxResult::Return(value) => return Ok(value),
                 _ => return Err(ret_val),

@@ -1,3 +1,4 @@
+mod load;
 pub mod callable;
 pub mod environment;
 pub mod interpreter;

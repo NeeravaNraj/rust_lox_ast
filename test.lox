@@ -1,3 +1,2 @@
-for (let i = 0; i < 10; ++i) {
-    continue;
-}
+let a = input("Proompt: ");
+print(a);

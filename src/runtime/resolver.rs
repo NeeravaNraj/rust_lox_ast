@@ -418,11 +418,6 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_print_stmt(&self, _: Rc<Stmt>, stmt: &PrintStmt, _: u16) -> Result<(), LoxResult> {
-        self.resolve_expr(stmt.expr.clone())?;
-        Ok(())
-    }
-
     fn visit_block_stmt(&self, _: Rc<Stmt>, stmt: &BlockStmt, _: u16) -> Result<(), LoxResult> {
         self.begin_scope();
         self.resolve(&stmt.statements)?;

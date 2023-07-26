@@ -93,13 +93,16 @@ impl Display for LoxClass {
 }
 
 impl LoxCallable for LoxClass {
-    fn call(&self, interpreter: &Interpreter, args: Vec<Literal>) -> Result<Literal, LoxResult> {
+    fn call(&self, interpreter: Option<&Interpreter>, args: Vec<Literal>) -> Result<Literal, LoxResult> {
         let instance = Rc::new(LoxInstance::new(self, self.other_fields.clone()));
         let initializer = self.find_method(&"init".to_string());
         if let Some(init) = initializer {
             match init {
                 Literal::Func(func) => {
                     func.bind(instance.clone())?.call(interpreter, args)?;
+                }
+                Literal::Native(n) => {
+                    return n.native.call(interpreter, args)
                 }
                 _ => {
                     panic!("found non function literal in constructor")
@@ -114,6 +117,7 @@ impl LoxCallable for LoxClass {
         if let Some(init) = initializer {
             match init {
                 Literal::Func(func) => return func.arity(),
+                Literal::Native(n) => return n.native.arity(),
                 _ => {
                     panic!("found non function literal in constructor arity")
                 }

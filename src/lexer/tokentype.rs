@@ -49,7 +49,6 @@ pub enum TokenType {
     If,
     Elif,
     Or,
-    Print,
     Return,
     Super,
     This,

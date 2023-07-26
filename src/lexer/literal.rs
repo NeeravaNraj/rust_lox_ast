@@ -1,3 +1,4 @@
+use crate::loxlib::array::loxarray::LoxArray;
 use crate::runtime::loxfunction::LoxFunction;
 use crate::runtime::{
     loxclass::LoxClass,
@@ -19,7 +20,7 @@ pub enum Literal {
     Native(Rc<LoxNative>),
     Class(Rc<LoxClass>),
     Instance(Rc<LoxInstance>),
-    Array(Vec<Literal>),
+    Array(Rc<LoxArray>),
     None,
     LiteralNone,
 }
@@ -103,8 +104,8 @@ impl Literal {
             Self::Instance(i) => i.to_string(),
             Self::Array(arr) => {
                 let mut str = "[".to_string();
-                let len = arr.len();
-                for (i, el) in arr.iter().enumerate() {
+                let len = arr.array.borrow().len();
+                for (i, el) in arr.array.borrow().iter().enumerate() {
                     str.push_str(&el.get_value());
                     if len > 1 && len - 1 != i {
                         str.push_str(", ");

@@ -151,4 +151,5 @@ pub enum LoxResult {
     Break,
     Continue,
     Return(Literal),
+    Message(String)
 }
