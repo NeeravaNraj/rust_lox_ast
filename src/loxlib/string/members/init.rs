@@ -12,7 +12,7 @@ pub struct Init;
 
 impl Init {
     pub fn new() -> Literal {
-        Literal::Native(Rc::new(LoxNative::new("push", Rc::new(Self {}), false)))
+        Literal::Native(Rc::new(LoxNative::new("init", Rc::new(Self {}), true)))
     }
 }
 

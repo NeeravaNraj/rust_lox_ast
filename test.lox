@@ -1,2 +1,3 @@
-let str = Str(1) + Str(2) + "abc";
-print(str);
+let a = "apple;banana";
+
+print(a.split(";"));

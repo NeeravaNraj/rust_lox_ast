@@ -580,13 +580,19 @@ impl VisitorExpr<Literal> for Interpreter {
 
         match callee {
             Literal::Func(func) => {
+                let name = if let Some(n) = &func.name {
+                    n.lexeme.as_str()
+                } else {
+                    "lambda"
+                };
                 if args.len() != func.arity() {
                     return Err(self.error_handler.error(
                         &expr.paren,
                         LoxErrorsTypes::Runtime(format!(
-                            "Expected {} arguments but got {}",
+                            "Expected {} arguments but got {} for '{}'",
                             func.arity(),
-                            args.len()
+                            args.len(),
+                            name
                         )),
                     ));
                 }
@@ -597,9 +603,10 @@ impl VisitorExpr<Literal> for Interpreter {
                     return Err(self.error_handler.error(
                         &expr.paren,
                         LoxErrorsTypes::Runtime(format!(
-                            "Expected {} arguments but got {}",
+                            "Expected {} arguments but got {} for {}",
                             class.arity(),
-                            args.len()
+                            args.len(),
+                            class.name
                         )),
                     ));
                 }
@@ -610,9 +617,10 @@ impl VisitorExpr<Literal> for Interpreter {
                     return Err(self.error_handler.error(
                         &expr.paren,
                         LoxErrorsTypes::Runtime(format!(
-                            "Expected {} arguments but got {}",
+                            "Expected {} arguments but got {} for '{}'",
                             func.native.arity(),
-                            args.len()
+                            args.len(),
+                            func.name
                         )),
                     ));
                 }
@@ -705,6 +713,7 @@ impl VisitorExpr<Literal> for Interpreter {
             Literal::Instance(i) => return Ok(i.get(&expr.name, &i)?),
             Literal::Class(c) => return Ok(c.get(&expr.name, &c)?),
             Literal::Array(a) => return Ok(a.get(&expr.name)?),
+            Literal::Str(s) => return Ok(s.get(&expr.name)?),
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),

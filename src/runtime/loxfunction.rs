@@ -15,7 +15,7 @@ pub struct LoxFunction {
     pub is_static: bool,
     pub is_pub: bool,
     is_initializer: bool,
-    name: Option<Token>,
+    pub name: Option<Token>,
     params: Rc<Vec<Token>>,
     body: Rc<Vec<Rc<Stmt>>>,
     closure: Rc<RefCell<Environment>>,
