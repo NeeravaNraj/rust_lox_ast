@@ -5,14 +5,15 @@ use crate::{
     lexer::{literal::Literal, token::Token, tokentype::TokenType},
     loxlib::{
         array::array_class_members::ArrayMembers, clock::Clock, input::Input,
-        loxnatives::LoxNative, print::Print,
+        loxnatives::LoxNative, print::Print, string::string_class_member::StringMembers,
     },
 };
 
 use super::{environment::Environment, loxclass::LoxClass};
 
 pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
-    let members = ArrayMembers::new(Rc::new(RefCell::new(Vec::new())));
+    let array_members = ArrayMembers::new(Rc::new(RefCell::new(Vec::new())));
+    let string_members = StringMembers::new(Rc::new(RefCell::new(String::new())));
     let natives = [
         (
             Token::new(TokenType::DefFn, "clock".to_string(), None, 0),
@@ -32,9 +33,22 @@ pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
                 "Array",
                 Rc::new(LoxClass::new(
                     "Array",
-                    members.get_methods(),
-                    members.get_statics(),
-                    members.get_fields(),
+                    array_members.get_methods(),
+                    array_members.get_statics(),
+                    array_members.get_fields(),
+                )),
+                false,
+            ))),
+        ),
+        (
+            Token::new(TokenType::Class, "Str".to_string(), None, 0),
+            Literal::Native(Rc::new(LoxNative::new(
+                "Str",
+                Rc::new(LoxClass::new(
+                    "Str",
+                    string_members.get_methods(),
+                    string_members.get_statics(),
+                    string_members.get_fields(),
                 )),
                 false,
             ))),

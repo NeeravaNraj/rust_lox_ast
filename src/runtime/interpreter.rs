@@ -1,11 +1,12 @@
 use super::{
-    callable::LoxCallable, environment::Environment, loxclass::LoxClass, loxfunction::LoxFunction,
-    loxinstance::InstanceField, load::load,
+    callable::LoxCallable, environment::Environment, load::load, loxclass::LoxClass,
+    loxfunction::LoxFunction, loxinstance::InstanceField,
 };
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
     lexer::{literal::*, token::*, tokentype::TokenType},
     loxlib::array::loxarray::LoxArray,
+    loxlib::string::loxstring::LoxString,
     parser::{expr::*, stmt::*},
 };
 use std::{
@@ -538,11 +539,11 @@ impl VisitorExpr<Literal> for Interpreter {
                     let v = current_val
                         .unwrap_str()
                         .repeat(value.unwrap_number() as usize);
-                    self.environment
-                        .borrow_mut()
-                        .borrow_mut()
-                        .mutate(&expr.name, Literal::Str(v.clone()))?;
-                    return Ok(Literal::Str(v));
+                    self.environment.borrow_mut().borrow_mut().mutate(
+                        &expr.name,
+                        Literal::Str(Rc::new(LoxString::new(v.to_string()))),
+                    )?;
+                    return Ok(Literal::Str(Rc::new(LoxString::new(v.to_string()))));
                 }
                 if let Ok(v) = &current_val.mul(value) {
                     self.environment
@@ -617,17 +618,14 @@ impl VisitorExpr<Literal> for Interpreter {
                 }
                 match func.native.call(Some(self), args) {
                     Ok(val) => return Ok(val),
-                    Err(result) => {
-                        match result {
-                            LoxResult::Message(msg) => {
-                                return Err(self.error_handler.error(
-                                    &expr.paren, 
-                                    LoxErrorsTypes::Runtime(msg)
-                                ))
-                            }
-                            _ => return Err(result)
+                    Err(result) => match result {
+                        LoxResult::Message(msg) => {
+                            return Err(self
+                                .error_handler
+                                .error(&expr.paren, LoxErrorsTypes::Runtime(msg)))
                         }
-                    }
+                        _ => return Err(result),
+                    },
                 }
             }
             _ => Err(self.error_handler.error(
@@ -672,7 +670,9 @@ impl VisitorExpr<Literal> for Interpreter {
         if let Literal::Array(arr) = literal {
             let num = self.check_index(&expr.bracket, &index)?;
             let len = arr.array.borrow().len() as isize;
-            return Ok(arr.array.borrow()
+            return Ok(arr
+                .array
+                .borrow()
                 .get(self.check_index_bounds(&expr.bracket, num, len)?)
                 .unwrap()
                 .dup());
@@ -684,12 +684,14 @@ impl VisitorExpr<Literal> for Interpreter {
                 ));
             }
             let num = self.check_index(&expr.bracket, &index)?;
-            let len = str.len() as isize;
+            let len = str.string.borrow().len() as isize;
             let string = *str
+                .string
+                .borrow_mut()
                 .as_bytes()
                 .get(self.check_index_bounds(&expr.bracket, num, len)?)
                 .unwrap() as char;
-            return Ok(Literal::Str(string.to_string()));
+            return Ok(Literal::Str(Rc::new(LoxString::new(string.to_string()))));
         }
         Err(self.error_handler.error(
             &expr.bracket,

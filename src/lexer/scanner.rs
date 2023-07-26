@@ -1,10 +1,10 @@
-use std::{collections::HashMap, process};
+use std::{collections::HashMap, process, rc::Rc};
 
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
     lexer::literal::Literal,
     lexer::token::Token,
-    lexer::tokentype::TokenType,
+    lexer::tokentype::TokenType, loxlib::string::loxstring::LoxString,
 };
 
 pub struct Scanner<'a> {
@@ -114,7 +114,7 @@ impl<'a> Scanner<'a> {
         let value: String = self.source[(self.start + 1)..(self.curr - 1)]
             .iter()
             .collect();
-        self.add_literal(TokenType::String, Some(Literal::Str(value)));
+        self.add_literal(TokenType::String, Some(Literal::Str(Rc::new(LoxString::new(value)))));
         Ok(())
     }
 

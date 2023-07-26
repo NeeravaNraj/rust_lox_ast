@@ -3,6 +3,7 @@ use crate::{
     lexer::literal::*,
     lexer::token::Token,
     lexer::tokentype::TokenType,
+    loxlib::string::loxstring::LoxString,
     parser::expr::{BinaryExpr, Expr, GroupingExpr, LiteralExpr, UnaryExpr},
 };
 use std::rc::Rc;
@@ -510,7 +511,7 @@ impl<'a> Parser<'a> {
                 }
                 Literal::Str(literal) => {
                     return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Str(
-                        literal.to_string(),
+                        Rc::new(LoxString::new(literal.string.borrow().to_string())),
                     )))))
                 }
                 _ => {}
@@ -792,7 +793,6 @@ impl<'a> Parser<'a> {
                     return Ok(Rc::new(Expr::UpdateIndex(UpdateIndexExpr::new(
                         self.current_token.as_ref().unwrap().dup(),
                         ind.identifier.clone(),
-
                         ind.bracket.dup(),
                         ind.index.clone(),
                         value,

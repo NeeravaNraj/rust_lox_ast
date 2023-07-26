@@ -1,9 +1,7 @@
 use crate::loxlib::array::loxarray::LoxArray;
+use crate::loxlib::string::loxstring::LoxString;
 use crate::runtime::loxfunction::LoxFunction;
-use crate::runtime::{
-    loxclass::LoxClass,
-    loxinstance::LoxInstance,
-};
+use crate::runtime::{loxclass::LoxClass, loxinstance::LoxInstance};
 
 use crate::loxlib::loxnatives::*;
 use core::fmt;
@@ -14,7 +12,7 @@ use std::rc::Rc;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(f64),
-    Str(String),
+    Str(Rc<LoxString>),
     Bool(bool),
     Func(Rc<LoxFunction>),
     Native(Rc<LoxNative>),
@@ -25,19 +23,18 @@ pub enum Literal {
     LiteralNone,
 }
 
-
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Self::Number(num) => write!(f, "Number {{ {num} }}"),
-            Self::Str(str) => write!(f, "String {{ \"{str}\" }}"),
+            Self::Str(str) => write!(f, "String {{ \"{}\" }}", str.string.borrow()),
             Self::None => write!(f, "none"),
             Self::Bool(bool) => write!(f, "{bool}"),
             Self::Func(_) => write!(f, "_Function_"),
             Self::Array(_) => write!(f, "Array []"),
             Self::Class(c) => write!(f, "{c}",),
             Self::Instance(i) => write!(f, "{i}"),
-            Self::Native(n)  => write!(f, "{n}"),
+            Self::Native(n) => write!(f, "{n}"),
             Self::LiteralNone => write!(f, "_LiteralNone_"), // This none is for internal use only
         }
     }
@@ -55,15 +52,15 @@ impl Literal {
         match self {
             Self::None => "none".to_string(),
             Self::Bool(bool) => bool.to_string(),
-            Self::Str(str) => str.to_string(),
+            Self::Str(str) => str.string.borrow().to_string(),
             Self::Number(num) => num.to_string(),
             _ => "none".to_string(),
         }
     }
 
     pub fn unwrap_str(&self) -> String {
-        if let Literal::Str(string) = self {
-            return string.to_string();
+        if let Literal::Str(str) = self {
+            return str.string.borrow().to_string();
         }
         panic!("Recieved {} instead of \"Literal::Str()\"", self);
     }
@@ -95,7 +92,7 @@ impl Literal {
     pub fn get_value(&self) -> String {
         match self {
             Self::Number(num) => num.to_string(),
-            Self::Str(str) => str.to_string(),
+            Self::Str(str) => str.string.borrow().to_string(),
             Self::Bool(bool) => bool.to_string(),
             Self::None => String::from("none"),
             Self::Func(func) => func.to_string(),
@@ -113,7 +110,7 @@ impl Literal {
                 }
                 str.push(']');
                 str
-            },
+            }
             Self::LiteralNone => String::from("none"),
         }
     }
@@ -121,7 +118,7 @@ impl Literal {
     pub fn print_value(&self) {
         match self {
             Self::Number(num) => println!("{num}"),
-            Self::Str(str) => println!("{str}"),
+            Self::Str(str) => println!("{}", str.string.borrow()),
             Self::Bool(bool) => println!("{bool}"),
             Self::Func(func) => println!("{func}"),
             Self::Class(class) => println!("{class}"),
@@ -136,7 +133,7 @@ impl Literal {
     pub fn dup(&self) -> Self {
         match self {
             Self::Number(num) => Self::Number(num.to_owned()),
-            Self::Str(str) => Self::Str(str.to_string()),
+            Self::Str(str) => Self::Str(str.clone()),
             Self::Bool(bool) => Self::Bool(bool.to_owned()),
             Self::None => Self::None,
             Self::Func(func) => Self::Func(func.clone()),
@@ -154,9 +151,12 @@ impl Add<Literal> for Literal {
     fn add(self, rhs: Literal) -> Self::Output {
         if self.cmp_type(&rhs) {
             if let Literal::Str(str) = self {
-                return Ok(Literal::Str(str + &rhs.as_value_string()));
-            } else if let Literal::Str(str) = rhs {
-                return Ok(Literal::Str(self.as_value_string() + &str));
+                return Ok(Literal::Str(Rc::new(LoxString::new(
+                    str.string
+                        .borrow_mut()
+                        .to_string()
+                        .add(&rhs.as_value_string()),
+                ))));
             } else if let Literal::Number(num) = self {
                 return Ok(Literal::Number(num + rhs.unwrap_number()));
             }

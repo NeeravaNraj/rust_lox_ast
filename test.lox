@@ -1,2 +1,2 @@
-let a = input("Proompt: ");
-print(a);
+let str = Str(1) + Str(2) + "abc";
+print(str);

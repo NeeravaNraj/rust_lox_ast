@@ -1,9 +1,11 @@
+use crate::loxlib::string::loxstring::LoxString;
 use crate::{
     error::*, lexer::literal::Literal, runtime::callable::LoxCallable,
     runtime::interpreter::Interpreter,
 };
 use std::io;
 use std::process;
+use std::rc::Rc;
 
 pub struct Input;
 
@@ -31,6 +33,6 @@ impl LoxCallable for Input{
             eprintln!("Error: {error}");
             process::exit(1);
         });
-        Ok(Literal::Str(input.trim_end().to_string()))
+        Ok(Literal::Str(Rc::new(LoxString::new(input.trim_end().to_string()))))
     }
 }
