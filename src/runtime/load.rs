@@ -5,7 +5,8 @@ use crate::{
     lexer::{literal::Literal, token::Token, tokentype::TokenType},
     loxlib::{
         array::array_class_members::ArrayMembers, clock::Clock, input::Input,
-        loxnatives::LoxNative, print::Print, string::string_class_member::StringMembers,
+        loxnatives::LoxNative, number::number_class_member::NumberMembers, print::Print,
+        string::string_class_member::StringMembers, typeofliteral::TypeOf,
     },
 };
 
@@ -14,6 +15,7 @@ use super::{environment::Environment, loxclass::LoxClass};
 pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
     let array_members = ArrayMembers::new(Rc::new(RefCell::new(Vec::new())));
     let string_members = StringMembers::new(Rc::new(RefCell::new(String::new())));
+    let number_members = NumberMembers::new(Rc::new(RefCell::new(0_f64)));
     let natives = [
         (
             Token::new(TokenType::DefFn, "clock".to_string(), None, 0),
@@ -25,7 +27,11 @@ pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
         ),
         (
             Token::new(TokenType::DefFn, "input".to_string(), None, 0),
-            Literal::Native(Rc::new(LoxNative::new("input", Rc::new(Input {}), false))),
+            Literal::Native(Rc::new(LoxNative::new("input", Rc::new(Input {}), true))),
+        ),
+        (
+            Token::new(TokenType::DefFn, "typeof".to_string(), None, 0),
+            Literal::Native(Rc::new(LoxNative::new("typeof", Rc::new(TypeOf {}), true))),
         ),
         (
             Token::new(TokenType::Class, "Array".to_string(), None, 0),
@@ -51,6 +57,15 @@ pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
                     string_members.get_fields(),
                 )),
                 false,
+            ))),
+        ),
+        (
+            Token::new(TokenType::Class, "Num".to_string(), None, 0),
+            Literal::Class(Rc::new(LoxClass::new(
+                "Num",
+                number_members.get_methods(),
+                number_members.get_statics(),
+                number_members.get_fields(),
             ))),
         ),
     ];

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    error::*, lexer::literal::Literal, loxlib::{loxnatives::LoxNative, array::ArrayData},
+    error::*, lexer::literal::Literal, loxlib::{loxnatives::LoxNative, array::ArrayData, number::loxnumber::LoxNumber},
     runtime::callable::LoxCallable, runtime::interpreter::Interpreter,
 };
 
@@ -17,7 +17,7 @@ impl Len {
 
 impl LoxCallable for Len {
     fn call(&self, _: Option<&Interpreter>, _: Vec<Literal>) -> Result<Literal, LoxResult> {
-        Ok(Literal::Number(self.array.borrow().len() as f64))
+        Ok(Literal::Number(Rc::new(LoxNumber::new(self.array.borrow().len() as f64))))
     }
 
     fn arity(&self) -> usize {

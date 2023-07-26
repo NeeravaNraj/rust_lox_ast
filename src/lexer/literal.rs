@@ -1,4 +1,5 @@
 use crate::loxlib::array::loxarray::LoxArray;
+use crate::loxlib::number::loxnumber::LoxNumber;
 use crate::loxlib::string::loxstring::LoxString;
 use crate::runtime::loxfunction::LoxFunction;
 use crate::runtime::{loxclass::LoxClass, loxinstance::LoxInstance};
@@ -11,7 +12,7 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
-    Number(f64),
+    Number(Rc<LoxNumber>),
     Str(Rc<LoxString>),
     Bool(bool),
     Func(Rc<LoxFunction>),
@@ -26,7 +27,7 @@ pub enum Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Number(num) => write!(f, "Number {{ {num} }}"),
+            Self::Number(num) => write!(f, "Number {{ {} }}", num.num.borrow()),
             Self::Str(str) => write!(f, "String {{ \"{}\" }}", str.string.borrow()),
             Self::None => write!(f, "none"),
             Self::Bool(bool) => write!(f, "{bool}"),
@@ -43,7 +44,7 @@ impl Display for Literal {
 impl Literal {
     pub fn unwrap_number(&self) -> f64 {
         if let Literal::Number(num) = self {
-            return *num;
+            return *num.num.borrow();
         }
         panic!("Recieved {} instead of \"Literal::Number()\"", self);
     }
@@ -53,7 +54,7 @@ impl Literal {
             Self::None => "none".to_string(),
             Self::Bool(bool) => bool.to_string(),
             Self::Str(str) => str.string.borrow().to_string(),
-            Self::Number(num) => num.to_string(),
+            Self::Number(num) => num.num.borrow().to_string(),
             _ => "none".to_string(),
         }
     }
@@ -70,6 +71,9 @@ impl Literal {
             Self::Number(_) => "Number".to_string(),
             Self::Str(_) => "String".to_string(),
             Self::Bool(_) => "Bool".to_string(),
+            Self::Func(_) => "Function".to_string(),
+            Self::Class(_) => "Class".to_string(),
+            Self::Array(_) => "Array".to_string(),
             _ => self.to_string(),
         }
     }
@@ -91,7 +95,7 @@ impl Literal {
 
     pub fn get_value(&self) -> String {
         match self {
-            Self::Number(num) => num.to_string(),
+            Self::Number(num) => num.num.borrow().to_string(),
             Self::Str(str) => str.string.borrow().to_string(),
             Self::Bool(bool) => bool.to_string(),
             Self::None => String::from("none"),
@@ -117,7 +121,7 @@ impl Literal {
 
     pub fn print_value(&self) {
         match self {
-            Self::Number(num) => println!("{num}"),
+            Self::Number(num) => println!("{}", num.num.borrow()),
             Self::Str(str) => println!("{}", str.string.borrow()),
             Self::Bool(bool) => println!("{bool}"),
             Self::Func(func) => println!("{func}"),
@@ -158,7 +162,9 @@ impl Add<Literal> for Literal {
                         .add(&rhs.as_value_string()),
                 ))));
             } else if let Literal::Number(num) = self {
-                return Ok(Literal::Number(num + rhs.unwrap_number()));
+                return Ok(Literal::Number(Rc::new(LoxNumber::new(
+                    num.num.borrow().add(rhs.unwrap_number()),
+                ))));
             }
         }
 
@@ -171,7 +177,9 @@ impl Sub<Literal> for Literal {
     fn sub(self, rhs: Literal) -> Self::Output {
         if self.cmp_type(&rhs) && self.get_typename() == "Number" {
             if let Literal::Number(num) = self {
-                return Ok(Literal::Number(num - rhs.unwrap_number()));
+                return Ok(Literal::Number(Rc::new(LoxNumber::new(
+                    num.num.borrow().sub(rhs.unwrap_number()),
+                ))));
             }
         }
         Err(format!("while trying to subtract {} and {}", self, rhs))
@@ -183,7 +191,9 @@ impl Mul<Literal> for Literal {
     fn mul(self, rhs: Literal) -> Self::Output {
         if self.cmp_type(&rhs) && self.get_typename() == "Number" {
             if let Literal::Number(num) = self {
-                return Ok(Literal::Number(num * rhs.unwrap_number()));
+                return Ok(Literal::Number(Rc::new(LoxNumber::new(
+                    num.num.borrow().mul(rhs.unwrap_number()),
+                ))));
             }
         }
         Err(format!("while trying to multiply {} and {}", self, rhs))
@@ -195,7 +205,9 @@ impl Div<Literal> for Literal {
     fn div(self, rhs: Literal) -> Self::Output {
         if self.cmp_type(&rhs) && self.get_typename() == "Number" {
             if let Literal::Number(num) = self {
-                return Ok(Literal::Number(num / rhs.unwrap_number()));
+                return Ok(Literal::Number(Rc::new(LoxNumber::new(
+                    num.num.borrow().div(rhs.unwrap_number()),
+                ))));
             }
         }
         Err(format!("while trying to divide {} and {}", self, rhs))

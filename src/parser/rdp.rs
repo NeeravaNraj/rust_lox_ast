@@ -506,7 +506,7 @@ impl<'a> Parser<'a> {
             match self.previous().literal.as_ref().unwrap() {
                 Literal::Number(literal) => {
                     return Ok(Rc::new(Expr::Literal(LiteralExpr::new(Literal::Number(
-                        *literal,
+                        literal.clone(),
                     )))))
                 }
                 Literal::Str(literal) => {

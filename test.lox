@@ -1,3 +1,5 @@
-let a = "apple;banana";
 
-print(a.split(";"));
+let data = input("Input number: ");
+let number = Num(data);
+print("Your number is", number);
+

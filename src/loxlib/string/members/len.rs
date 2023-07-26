@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     error::*,
     lexer::literal::Literal,
-    loxlib::{loxnatives::LoxNative, string::StringData},
+    loxlib::{loxnatives::LoxNative, string::StringData, number::loxnumber::LoxNumber},
     runtime::callable::LoxCallable,
     runtime::interpreter::Interpreter,
 };
@@ -24,6 +24,6 @@ impl LoxCallable for Len {
     }
 
     fn call(&self, _: Option<&Interpreter>, _: Vec<Literal>) -> Result<Literal, LoxResult> {
-        Ok(Literal::Number(self.string.borrow().len() as f64))
+        Ok(Literal::Number(Rc::new(LoxNumber::new(self.string.borrow().len() as f64))))
     }
 }

@@ -5,8 +5,8 @@ use super::{
 use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxError, LoxErrorsTypes, LoxResult},
     lexer::{literal::*, token::*, tokentype::TokenType},
-    loxlib::array::loxarray::LoxArray,
     loxlib::string::loxstring::LoxString,
+    loxlib::{array::loxarray::LoxArray, number::loxnumber::LoxNumber},
     parser::{expr::*, stmt::*},
 };
 use std::{
@@ -305,6 +305,24 @@ impl Interpreter {
         self.is_repl = is;
     }
 
+    fn catch_message(
+        &self,
+        token: &Token,
+        result: Result<Literal, LoxResult>,
+    ) -> Result<Literal, LoxResult> {
+        match result {
+            Ok(val) => return Ok(val),
+            Err(err) => match err {
+                LoxResult::Message(msg) => {
+                    return Err(self
+                        .error_handler
+                        .error(token, LoxErrorsTypes::Runtime(msg)))
+                }
+                _ => return Err(err),
+            },
+        }
+    }
+
     fn check_arithmetic(
         &self,
         operator: &Token,
@@ -400,7 +418,9 @@ impl VisitorExpr<Literal> for Interpreter {
 
         self.check_num_unary(&expr.operator, &right)?;
         match expr.operator.token_type {
-            TokenType::Minus => Ok(Literal::Number(-right.unwrap_number())),
+            TokenType::Minus => Ok(Literal::Number(Rc::new(LoxNumber::new(
+                -right.unwrap_number(),
+            )))),
             TokenType::Bang => Ok(Literal::Bool(!self.is_truthy(&right))),
             _ => unreachable!("Unary evaluation reached unreachable state."),
         }
@@ -596,7 +616,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                func.call(Some(self), args)
+                self.catch_message(&expr.paren, func.call(Some(self), args))
             }
             Literal::Class(class) => {
                 if args.len() != class.arity() {
@@ -610,7 +630,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                class.call(Some(self), args)
+                self.catch_message(&expr.paren, class.call(Some(self), args))
             }
             Literal::Native(func) => {
                 if func.check_arity && args.len() != func.native.arity() {
@@ -624,17 +644,7 @@ impl VisitorExpr<Literal> for Interpreter {
                         )),
                     ));
                 }
-                match func.native.call(Some(self), args) {
-                    Ok(val) => return Ok(val),
-                    Err(result) => match result {
-                        LoxResult::Message(msg) => {
-                            return Err(self
-                                .error_handler
-                                .error(&expr.paren, LoxErrorsTypes::Runtime(msg)))
-                        }
-                        _ => return Err(result),
-                    },
-                }
+                self.catch_message(&expr.paren, func.native.call(Some(self), args))
             }
             _ => Err(self.error_handler.error(
                 &expr.paren,
@@ -714,6 +724,7 @@ impl VisitorExpr<Literal> for Interpreter {
             Literal::Class(c) => return Ok(c.get(&expr.name, &c)?),
             Literal::Array(a) => return Ok(a.get(&expr.name)?),
             Literal::Str(s) => return Ok(s.get(&expr.name)?),
+            Literal::Number(n) => return Ok(n.get(&expr.name)?),
             _ => Err(self.error_handler.error(
                 &expr.name,
                 LoxErrorsTypes::Runtime("Only instances have properties".to_string()),
@@ -757,18 +768,18 @@ impl VisitorExpr<Literal> for Interpreter {
         match &*expr.var {
             Expr::Variable(v) => {
                 let var = self.evaluate(expr.var.clone())?;
-                match var {
+                match &var {
                     Literal::Number(num) => {
                         let final_num = if expr.operator.token_type == TokenType::PlusPlus {
-                            num + 1_f64
+                            num.num.borrow().add(1_f64)
                         } else {
-                            num - 1_f64
+                            num.num.borrow().sub(1_f64)
                         };
 
                         self.environment
                             .borrow()
                             .borrow_mut()
-                            .mutate(&v.name, Literal::Number(final_num))?;
+                            .mutate(&v.name, Literal::Number(Rc::new(LoxNumber::new(final_num))))?;
 
                         if expr.prefix {
                             return Ok(self.environment.borrow().borrow().get(&v.name)?.dup());

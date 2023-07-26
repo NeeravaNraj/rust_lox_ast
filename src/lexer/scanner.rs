@@ -4,7 +4,7 @@ use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
     lexer::literal::Literal,
     lexer::token::Token,
-    lexer::tokentype::TokenType, loxlib::string::loxstring::LoxString,
+    lexer::tokentype::TokenType, loxlib::{string::loxstring::LoxString, number::loxnumber::LoxNumber},
 };
 
 pub struct Scanner<'a> {
@@ -134,7 +134,7 @@ impl<'a> Scanner<'a> {
         let value: String = self.source[self.start..self.curr].iter().collect();
         self.add_literal(
             TokenType::Number,
-            Some(Literal::Number(value.parse::<f64>().unwrap())),
+            Some(Literal::Number(Rc::new(LoxNumber::new(value.parse::<f64>().unwrap())))),
         );
     }
 
