@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
         "Function ; name: Token, params: Rc<Vec<Token>>, body: Rc<Vec<Rc<Stmt>>>, is_static: bool, is_pub: bool".to_string(),
         "Return ; keyword: Token, value: Rc<Expr>".to_string(),
         "Class ; name: Token, fields: Vec<Rc<Stmt>>, methods: Vec<Rc<Stmt>>".to_string(),
-        "Field ; name: Token, is_pub: bool, is_static: bool".to_string(),
+        "Field ; name: Token, is_pub: bool, initializer: Option<Rc<Expr>>, is_static: bool".to_string(),
     ];
 
     let stmt_mods = vec![

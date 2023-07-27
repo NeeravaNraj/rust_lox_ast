@@ -1,4 +1,0 @@
-let data = input("Input number: ");
-let number = Num(data);
-print("Your number is", number);
-

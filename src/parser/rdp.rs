@@ -315,10 +315,27 @@ impl<'a> Parser<'a> {
                 methods.push(self.function(Some(name), "method", is_static, !is_private)?);
                 return Ok(());
             }
+
+            if self.match_single_token(TokenType::Assign) {
+                let value = self.expression()?;
+                fields.push(Rc::new(Stmt::Field(FieldStmt::new(
+                    name.dup(),
+                    !is_private,
+                    Some(value),
+                    is_static,
+                ))));
+                self.consume(
+                    TokenType::Semicolon,
+                    LoxErrorsTypes::Syntax("Expected ';' after expression".to_string()),
+                )?;
+                return Ok(())
+            }
+
             if self.match_single_token(TokenType::Semicolon) {
                 fields.push(Rc::new(Stmt::Field(FieldStmt::new(
                     name.dup(),
                     !is_private,
+                    None,
                     is_static,
                 ))));
                 return Ok(());

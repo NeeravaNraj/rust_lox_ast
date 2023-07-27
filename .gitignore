@@ -1,3 +1,6 @@
 /target
 src/parser/expr.rs
 src/parser/stmt.rs
+rlox
+example.lox
+test.lox

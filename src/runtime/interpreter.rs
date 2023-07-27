@@ -1002,13 +1002,18 @@ impl VisitorStmt<()> for Interpreter {
         for field in stmt.fields.iter() {
             match &**field {
                 Stmt::Field(f) => {
+                    let value = if let Some(val) = &f.initializer {
+                        self.evaluate(val.clone())?
+                    } else {
+                        Literal::None
+                    };
                     if f.is_static {
-                        static_fields.insert(f.name.lexeme.to_string(), Literal::None);
+                        static_fields.insert(f.name.lexeme.to_string(), value.dup());
                     } else {
                         other_fields.insert(
                             f.name.lexeme.to_string(),
                             InstanceField {
-                                value: Literal::None,
+                                value: value.dup(),
                                 is_public: f.is_pub,
                             },
                         );
