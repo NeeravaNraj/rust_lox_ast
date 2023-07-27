@@ -25,7 +25,7 @@ enum LoopType {
     Loop,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct VariableType {
     token: Option<Token>,
     define: bool,
@@ -138,6 +138,7 @@ impl<'a> Resolver<'a> {
     }
 
     fn end_scope(&self) {
+        self.check_unused();
         self.scopes.borrow_mut().pop();
     }
 
@@ -151,20 +152,20 @@ impl<'a> Resolver<'a> {
         for statement in statements {
             self.resolve_statement(statement.clone())?;
         }
-        self.check_unused();
         // self.print_scopes();
         Ok(())
     }
 
     fn check_unused(&self) {
-        for scope in self.scopes.borrow().iter() {
-            for var in scope.borrow().values() {
-                if !var.used {
-                    self.warning_handler.warn(
-                        var.token.as_ref().unwrap(),
-                        LoxWarningTypes::UnusedVariable("Unused variable".to_string()),
-                    );
-                }
+        if self.scopes.borrow().is_empty() {
+            return;
+        }
+        for var in self.scopes.borrow().last().unwrap().borrow().values() {
+            if !var.used {
+                self.warning_handler.warn(
+                    var.token.as_ref().unwrap(),
+                    LoxWarningTypes::UnusedVariable("Unused variable".to_string()),
+                );
             }
         }
     }
@@ -213,7 +214,7 @@ impl<'a> Resolver<'a> {
     fn resolve_local(&self, expr: Rc<Expr>, name: &Token) {
         for (i, scope) in self.scopes.borrow().iter().rev().enumerate() {
             if scope.borrow().contains_key(&name.lexeme) {
-                self.interpreter.resolve(expr.clone(),  i);
+                self.interpreter.resolve(expr.clone(), i);
                 return;
             }
         }
@@ -371,7 +372,12 @@ impl<'a> VisitorExpr<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_updateindex_expr(&self, _: Rc<Expr>, expr: &UpdateIndexExpr, _: u16) -> Result<(), LoxResult> {
+    fn visit_updateindex_expr(
+        &self,
+        _: Rc<Expr>,
+        expr: &UpdateIndexExpr,
+        _: u16,
+    ) -> Result<(), LoxResult> {
         self.resolve_expr(expr.identifier.clone())?;
         self.resolve_expr(expr.value.clone())?;
         self.resolve_expr(expr.index.clone())?;
