@@ -328,7 +328,7 @@ impl<'a> Parser<'a> {
                     TokenType::Semicolon,
                     LoxErrorsTypes::Syntax("Expected ';' after expression".to_string()),
                 )?;
-                return Ok(())
+                return Ok(());
             }
 
             if self.match_single_token(TokenType::Semicolon) {
@@ -353,8 +353,10 @@ impl<'a> Parser<'a> {
             ));
         }
 
-        self.match_single_token(TokenType::Static);
-        self.class_field(methods, fields, is_private, true)
+        Err(self.error_handler.error(
+            &prev, 
+            LoxErrorsTypes::Syntax(format!("Unexpected token '{}' after", self.peek().lexeme))
+        ))
     }
 
     fn class_statement(&mut self) -> Result<Rc<Stmt>, LoxResult> {
@@ -384,7 +386,7 @@ impl<'a> Parser<'a> {
 
         self.consume(
             TokenType::RightBrace,
-            LoxErrorsTypes::Syntax("Expected '}' before class body".to_string()),
+            LoxErrorsTypes::Syntax("Expected '}' after class body".to_string()),
         )?;
 
         Ok(Rc::new(Stmt::Class(ClassStmt::new(name, fields, methods))))
@@ -680,7 +682,7 @@ impl<'a> Parser<'a> {
     fn factor(&mut self) -> Result<Rc<Expr>, LoxResult> {
         let mut expr = self.unary()?;
 
-        while self.is_match(vec![TokenType::Slash, TokenType::Star]) {
+        while self.is_match(vec![TokenType::Slash, TokenType::Star, TokenType::Modulus]) {
             let operator = self.previous();
             expr = Rc::new(Expr::Binary(BinaryExpr::new(expr, operator, self.unary()?)));
         }
@@ -835,12 +837,14 @@ impl<'a> Parser<'a> {
             TokenType::SlashEqual,
             TokenType::PlusEqual,
             TokenType::MinusEqual,
+            TokenType::ModEqual
         ]) {
             let token = self.previous();
             let value = self.primary()?;
 
             match self.peek().token_type {
                 TokenType::SlashEqual
+                | TokenType::ModEqual
                 | TokenType::StarEqual
                 | TokenType::MinusEqual
                 | TokenType::PlusEqual => {
@@ -1201,6 +1205,14 @@ mod tests {
             }
             Ok(format!("UpdateExpr {1} {0}", expr.operator.lexeme, var))
         }
+
+        fn visit_updateindex_expr(&self, _: Rc<Expr>, expr: &UpdateIndexExpr, _: u16) -> Result<String, LoxResult> {
+            let val = self.evaluate(expr.value.clone())?;
+            let index = self.evaluate(expr.index.clone())?;
+            let ident = self.evaluate(expr.identifier.clone())?;
+
+            Ok(format!("UpdateIndex {ident}[{index} = {val}]"))
+        }
     }
 
     impl<'a> VisitorStmt<String> for AstTraverser<'a> {
@@ -1248,18 +1260,6 @@ mod tests {
 
             let body = self.execute(stmt.body.clone())?;
             let str = format!("ForStmt ({};{};{}) {}", var_decl, condition, update, body);
-
-            Ok(str)
-        }
-
-        fn visit_print_stmt(
-            &self,
-            _: Rc<Stmt>,
-            stmt: &PrintStmt,
-            _: u16,
-        ) -> Result<String, LoxResult> {
-            let expr = self.evaluate(stmt.expr.clone())?;
-            let str = format!("PrintStmt {expr}");
 
             Ok(str)
         }
@@ -1387,9 +1387,9 @@ mod tests {
 
         fn visit_field_stmt(
             &self,
-            wrapper: Rc<Stmt>,
+            _: Rc<Stmt>,
             stmt: &FieldStmt,
-            depth: u16,
+            _: u16,
         ) -> Result<String, LoxResult> {
             if stmt.is_pub {
                 return Ok(format!("FieldStmt public {}", stmt.name.lexeme));
@@ -2149,13 +2149,6 @@ mod tests {
     }
 
     #[test]
-    fn print_statement() {
-        let src = "print 1;";
-        let expected = vec!["PrintStmt LiteralExpr Number { 1 }"];
-        perform(src, expected)
-    }
-
-    #[test]
     fn variable_declaration() {
         let src = "let a = 1;";
         let expected = vec!["LetStmt a = LiteralExpr Number { 1 }"];
@@ -2634,20 +2627,6 @@ mod tests {
     }
 
     #[test]
-    fn print_no_expr() {
-        let src = "print ;";
-        let expected = LoxErrorsTypes::Syntax("Expected expression after".to_string());
-        perform_err(src, expected)
-    }
-
-    #[test]
-    fn print_no_semicolon() {
-        let src = "print a";
-        let expected = LoxErrorsTypes::Syntax("Expected ';' after".to_string());
-        perform_err(src, expected)
-    }
-
-    #[test]
     fn if_statements() {
         let src = "if (x > 1) {
             y = 5;
@@ -2740,29 +2719,29 @@ mod tests {
 
     #[test]
     fn if_statements_inline_stmt() {
-        let src = "if ((x - 2) * y < 100) print y + 1;";
-        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 }"];
+        let src = "if ((x - 2) * y < 100) print(y + 1);";
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr y + LiteralExpr Number { 1 }"];
         perform(src, expected)
     }
 
     #[test]
     fn if_else_statements_inline_stmt() {
         let src = "
-            if ((x - 2) * y < 100) print y + 1;
-            else print y;
+            if ((x - 2) * y < 100) print(y + 1);
+            else print(y);
         ";
-        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else PrintStmt VariableExpr y"];
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else ExpressionStmt CallExpr VariableExpr print VariableExpr y"];
         perform(src, expected)
     }
 
     #[test]
     fn if_elif_else_statements_inline_stmt() {
         let src = "
-            if ((x - 2) * y < 100) print y + 1;
-            elif (x == 100) print y - 1;
-            else print y;
+            if ((x - 2) * y < 100) print(y + 1);
+            elif (x == 100) print(y - 1);
+            else print(y);
         ";
-        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else IfStmt (BinaryExpr VariableExpr x == LiteralExpr Number { 100 }) PrintStmt BinaryExpr VariableExpr y - LiteralExpr Number { 1 } else PrintStmt VariableExpr y"];
+        let expected = vec!["IfStmt (BinaryExpr BinaryExpr GroupingExpr (BinaryExpr VariableExpr x - LiteralExpr Number { 2 }) * VariableExpr y < LiteralExpr Number { 100 }) ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr y + LiteralExpr Number { 1 } else IfStmt (BinaryExpr VariableExpr x == LiteralExpr Number { 100 }) ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr y - LiteralExpr Number { 1 } else ExpressionStmt CallExpr VariableExpr print VariableExpr y"];
         perform(src, expected)
     }
 
@@ -2852,8 +2831,8 @@ mod tests {
 
     #[test]
     fn for_statement_simple_statement() {
-        let src = "for(let i = 0; i < 10; i += 1) print i;";
-        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) PrintStmt VariableExpr i"];
+        let src = "for(let i = 0; i < 10; i += 1) print(i);";
+        let expected = vec!["ForStmt (LetStmt i = LiteralExpr Number { 0 };BinaryExpr VariableExpr i < LiteralExpr Number { 10 };CompoundAssignExpr i += LiteralExpr Number { 1 }) ExpressionStmt CallExpr VariableExpr print VariableExpr i"];
         perform(src, expected)
     }
 
@@ -2970,8 +2949,8 @@ mod tests {
 
     #[test]
     fn while_statement_simple_statement() {
-        let src = "while (i < 10) print i;";
-        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) PrintStmt VariableExpr i"];
+        let src = "while (i < 10) print(i);";
+        let expected = vec!["WhileStmt (BinaryExpr VariableExpr i < LiteralExpr Number { 10 }) ExpressionStmt CallExpr VariableExpr print VariableExpr i"];
         perform(src, expected)
     }
 
@@ -3075,10 +3054,10 @@ mod tests {
     #[test]
     fn fn_statement_print() {
         let src = "fn test(a, b) {
-            print a + b;
+            print(a + b);
         }";
         let expected = vec![
-            "FunctionStmt test(a, b) { PrintStmt BinaryExpr VariableExpr a + VariableExpr b }",
+            "FunctionStmt test(a, b) { ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr a + VariableExpr b }",
         ];
         perform(src, expected)
     }
@@ -3099,10 +3078,10 @@ mod tests {
     fn fn_statement_return_lambda() {
         let src = "fn test(a, b) {
             return lm() {
-                print a + b;
+                print(a + b);
             };
         }";
-        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt LambdaExpr lm() { PrintStmt BinaryExpr VariableExpr a + VariableExpr b } }"];
+        let expected = vec!["FunctionStmt test(a, b) { ReturnStmt LambdaExpr lm() { ExpressionStmt CallExpr VariableExpr print BinaryExpr VariableExpr a + VariableExpr b } }"];
         perform(src, expected)
     }
 
@@ -3233,8 +3212,8 @@ mod tests {
 
     #[test]
     fn array_expr_expression_as_elements() {
-        let src = "[a, 1 + 2, a > 2, lm(){ print 123; }];";
-        let expected = vec!["ExpressionStmt ArrayExpr [VariableExpr a, BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }, BinaryExpr VariableExpr a > LiteralExpr Number { 2 }, LambdaExpr lm() { PrintStmt LiteralExpr Number { 123 } }]"];
+        let src = "[a, 1 + 2, a > 2, lm(){ print(123); }];";
+        let expected = vec!["ExpressionStmt ArrayExpr [VariableExpr a, BinaryExpr LiteralExpr Number { 1 } + LiteralExpr Number { 2 }, BinaryExpr VariableExpr a > LiteralExpr Number { 2 }, LambdaExpr lm() { ExpressionStmt CallExpr VariableExpr print LiteralExpr Number { 123 } }]"];
         perform(src, expected)
     }
 
@@ -3440,14 +3419,14 @@ mod tests {
     #[test]
     fn class_decl_unclosed_body() {
         let src = "class Point {;";
-        let expected = LoxErrorsTypes::Syntax("Expected method name after".to_string());
+        let expected = LoxErrorsTypes::Syntax("Unexpected token ';' after".to_string());
         perform_err(src, expected)
     }
 
     #[test]
     fn class_decl_method_no_parens() {
         let src = "class Point { init;";
-        let expected = LoxErrorsTypes::Syntax("Expected '(' after".to_string());
+        let expected = LoxErrorsTypes::Syntax("Expected '}' after class body".to_string());
         perform_err(src, expected)
     }
 

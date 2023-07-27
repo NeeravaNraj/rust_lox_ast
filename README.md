@@ -42,9 +42,10 @@ Notice all statements end with a semicolon.
 1 - 2; // Subtract
 1 * 2; // Multiply
 1 / 2; // Divide
+1 % 2; // Modulus
 -1; // Negation
-// The operaters that are supported are +, -, *, /
-// I haven't implemented Modulus and Bitwise operators yet
+// The operaters that are supported are +, -, *, /, %
+// I haven't implemented Bitwise operators yet
 ```
 
 ### Compound assignment.
@@ -54,6 +55,7 @@ a += 1; // We set a to 'a + 1'
 a -= 1; // We set a to 'a - 1'
 a *= 1; // We set a to 'a * 1'
 a /= 1; // We set a to 'a / 1'
+a %= 1; // We set a to 'a % 1'
 ```
 ### Logical operators.
 ```rust

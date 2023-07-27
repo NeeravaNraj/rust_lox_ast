@@ -110,21 +110,29 @@ impl Interpreter {
         left: &Literal,
         right: &Literal,
     ) -> Result<(), LoxResult> {
-        if (left.get_typename() == "Number" && right.get_typename() == "Number")
-            || (left.get_typename() == "String" || right.get_typename() == "String")
-        {
-            return Ok(());
-        }
-
         match operator.token_type {
-            TokenType::Minus | TokenType::Slash | TokenType::Star => Err(self.error_handler.error(
-                operator,
-                LoxErrorsTypes::Type("Operands must be numbers for".to_string()),
-            )),
-            TokenType::Plus => Err(self.error_handler.error(
-                operator,
-                LoxErrorsTypes::Type("Operands must be either numbers or strings for".to_string()),
-            )),
+            TokenType::Minus | TokenType::Slash | TokenType::Star | TokenType::Modulus => {
+                if left.get_typename() == "Number" && right.get_typename() == "Number" {
+                    return Ok(());
+                }
+                Err(self.error_handler.error(
+                    operator,
+                    LoxErrorsTypes::Type("Operands must be numbers for".to_string()),
+                ))
+            }
+            TokenType::Plus => {
+                if (left.get_typename() == "Number" && right.get_typename() == "Number")
+                    || (left.get_typename() == "String" || right.get_typename() == "String")
+                {
+                    return Ok(());
+                }
+                Err(self.error_handler.error(
+                    operator,
+                    LoxErrorsTypes::Type(
+                        "Operands must be either numbers or strings for".to_string(),
+                    ),
+                ))
+            }
             _ => Ok(()),
         }
     }
@@ -198,6 +206,20 @@ impl Interpreter {
                     operator,
                     LoxErrorsTypes::Type(format!(
                         "Cannot divide types '{}' by '{}' for",
+                        a.get_typename(),
+                        b.get_typename()
+                    )),
+                ))
+            }
+            TokenType::ModEqual => {
+                if a.get_typename() == "Number" && b.get_typename() == "Number" {
+                    return Ok(());
+                }
+
+                Err(self.error_handler.error(
+                    operator,
+                    LoxErrorsTypes::Type(format!(
+                        "Cannot mod types '{}' by '{}' for",
                         a.get_typename(),
                         b.get_typename()
                     )),
@@ -441,13 +463,16 @@ impl VisitorExpr<Literal> for Interpreter {
             TokenType::Slash => self.check_arithmetic(&expr.operator, left / right),
             TokenType::Star => self.check_arithmetic(&expr.operator, left * right),
             TokenType::Plus => self.check_arithmetic(&expr.operator, left + right),
+            TokenType::Modulus => Ok(Literal::Number(Rc::new(LoxNumber::new(
+                left.unwrap_number() % right.unwrap_number(),
+            )))),
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(left, right))),
             TokenType::Equals => Ok(Literal::Bool(self.is_equal(left, right))),
             TokenType::Greater
             | TokenType::Less
             | TokenType::GreaterEqual
             | TokenType::LessEqual => self.do_comparison(&expr.operator, left, right),
-            _ => todo!(""),
+            _ => unreachable!("BinaryExpr"),
         }
     }
 
@@ -581,6 +606,16 @@ impl VisitorExpr<Literal> for Interpreter {
                         .mutate(&expr.name, v.dup())?;
                     return Ok(v.dup());
                 }
+            }
+            TokenType::ModEqual => {
+                let v = Literal::Number(Rc::new(LoxNumber::new(
+                    current_val.unwrap_number() % value.unwrap_number(),
+                )));
+                self.environment
+                    .borrow_mut()
+                    .borrow_mut()
+                    .mutate(&expr.name, v.dup())?;
+                return Ok(v.dup());
             }
             _ => {}
         }

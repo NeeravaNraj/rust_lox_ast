@@ -86,7 +86,7 @@ impl Literal {
     }
 
     pub fn equals(self, rhs: Self) -> bool {
-        if self == rhs {
+        if self.get_value() == rhs.get_value() {
             return true;
         }
 

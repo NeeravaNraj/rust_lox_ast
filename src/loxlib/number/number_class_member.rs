@@ -1,17 +1,13 @@
 use std::collections::HashMap;
 
 use crate::{lexer::literal::Literal, runtime::loxinstance::InstanceField};
-use super::{members::*, NumberData};
+use super::members::*;
 
-pub struct NumberMembers {
-    number: NumberData 
-}
+pub struct NumberMembers;
 
 impl NumberMembers {
-    pub fn new(number: NumberData) -> Self {
-        Self {
-           number 
-        }
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn get_methods(&self) -> HashMap<String, Literal> {

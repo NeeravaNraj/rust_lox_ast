@@ -15,7 +15,7 @@ use super::{environment::Environment, loxclass::LoxClass};
 pub fn load(env: Rc<RefCell<Environment>>) -> Result<(), LoxResult> {
     let array_members = ArrayMembers::new(Rc::new(RefCell::new(Vec::new())));
     let string_members = StringMembers::new(Rc::new(RefCell::new(String::new())));
-    let number_members = NumberMembers::new(Rc::new(RefCell::new(0_f64)));
+    let number_members = NumberMembers::new();
     let natives = [
         (
             Token::new(TokenType::DefFn, "clock".to_string(), None, 0),

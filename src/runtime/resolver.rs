@@ -553,7 +553,10 @@ impl<'a> VisitorStmt<()> for Resolver<'a> {
         Ok(())
     }
 
-    fn visit_field_stmt(&self, _: Rc<Stmt>, _: &FieldStmt, _: u16) -> Result<(), LoxResult> {
+    fn visit_field_stmt(&self, _: Rc<Stmt>, stmt: &FieldStmt, _: u16) -> Result<(), LoxResult> {
+        if let Some(expr) = &stmt.initializer {
+            self.resolve_expr(expr.clone())?;
+        };
         Ok(())
     }
 }

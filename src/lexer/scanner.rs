@@ -4,7 +4,8 @@ use crate::{
     error::{loxerrorhandler::LoxErrorHandler, LoxErrorsTypes, LoxResult},
     lexer::literal::Literal,
     lexer::token::Token,
-    lexer::tokentype::TokenType, loxlib::{string::loxstring::LoxString, number::loxnumber::LoxNumber},
+    lexer::tokentype::TokenType,
+    loxlib::{number::loxnumber::LoxNumber, string::loxstring::LoxString},
 };
 
 pub struct Scanner<'a> {
@@ -105,7 +106,7 @@ impl<'a> Scanner<'a> {
             return Err(self.error_handler.simple_error(
                 self.line - 1,
                 LoxErrorsTypes::Syntax("String was not terminated".to_string()),
-            ))
+            ));
         }
 
         self.advance();
@@ -114,7 +115,10 @@ impl<'a> Scanner<'a> {
         let value: String = self.source[(self.start + 1)..(self.curr - 1)]
             .iter()
             .collect();
-        self.add_literal(TokenType::String, Some(Literal::Str(Rc::new(LoxString::new(value)))));
+        self.add_literal(
+            TokenType::String,
+            Some(Literal::Str(Rc::new(LoxString::new(value)))),
+        );
         Ok(())
     }
 
@@ -134,7 +138,9 @@ impl<'a> Scanner<'a> {
         let value: String = self.source[self.start..self.curr].iter().collect();
         self.add_literal(
             TokenType::Number,
-            Some(Literal::Number(Rc::new(LoxNumber::new(value.parse::<f64>().unwrap())))),
+            Some(Literal::Number(Rc::new(LoxNumber::new(
+                value.parse::<f64>().unwrap(),
+            )))),
         );
     }
 
@@ -156,7 +162,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn block_comment(&mut self) -> Result<(), LoxResult>{
+    fn block_comment(&mut self) -> Result<(), LoxResult> {
         loop {
             match self.peek() {
                 '/' => {
@@ -216,6 +222,14 @@ impl<'a> Scanner<'a> {
                     TokenType::PlusPlus
                 } else {
                     TokenType::Plus
+                };
+                self.add_token(token);
+            }
+            '%' => {
+                let token = if self.is_match('=') {
+                    TokenType::ModEqual
+                } else {
+                    TokenType::Modulus
                 };
                 self.add_token(token);
             }
@@ -325,7 +339,6 @@ impl<'a> Scanner<'a> {
         hmap.insert(String::from("none"), TokenType::None);
         hmap.insert(String::from("let"), TokenType::Let);
         hmap.insert(String::from("return"), TokenType::Return);
-        hmap.insert(String::from("super"), TokenType::Super);
         hmap.insert(String::from("this"), TokenType::This);
         hmap.insert(String::from("true"), TokenType::True);
         hmap.insert(String::from("false"), TokenType::False);
@@ -360,7 +373,7 @@ mod tests {
 
     #[test]
     fn single_char_tokens() {
-        let src = "(){}[],.-+*/;?:";
+        let src = "(){}[],.-+*/;?:%";
         let e_handler = LoxErrorHandler::new();
         let mut s = Scanner::new(src, &e_handler);
         let expected = vec![
@@ -379,7 +392,8 @@ mod tests {
             TokenType::Semicolon,
             TokenType::QuestionMark,
             TokenType::Colon,
-            TokenType::EOF
+            TokenType::Modulus,
+            TokenType::EOF,
         ];
 
         let lexemes = vec![
@@ -398,6 +412,7 @@ mod tests {
             String::from(";"),
             String::from("?"),
             String::from(":"),
+            String::from("%"),
         ];
 
         match s.scan_tokens() {
@@ -409,9 +424,9 @@ mod tests {
                         assert_eq!(&val.lexeme, lit);
                     }
                 }
-            },
-            Err(_) => panic!("failed")
-        }        
+            }
+            Err(_) => panic!("failed"),
+        }
     }
 
     #[test]
@@ -432,7 +447,7 @@ mod tests {
             TokenType::GreaterEqual,
             TokenType::Less,
             TokenType::LessEqual,
-            TokenType::EOF
+            TokenType::EOF,
         ];
 
         let lexemes = vec![
@@ -458,9 +473,9 @@ mod tests {
                         assert_eq!(&val.lexeme, lex);
                     }
                 }
-            },
-            Err(_) => panic!("failed")
-        }        
+            }
+            Err(_) => panic!("failed"),
+        }
     }
 
     #[test]
@@ -472,13 +487,7 @@ mod tests {
             TokenType::Identifier,
             TokenType::String,
             TokenType::Number,
-            TokenType::EOF
-        ];
-
-        let literals = vec![
-            None,
-            Some(Literal::Str(String::from("string"))),
-            Some(Literal::Number(123_f64))
+            TokenType::EOF,
         ];
 
         let lexemes = vec![
@@ -492,21 +501,25 @@ mod tests {
                 assert_eq!(expected_token.len(), toks.len());
                 for (i, val) in toks.iter().enumerate() {
                     assert_eq!(&val.token_type, expected_token.get(i).unwrap());
-                    if let Some(lit) = literals.get(i) {
-                        assert_eq!(&val.literal, lit);
+                    if let Some(lit) = &val.literal {
+                        match lit {
+                            Literal::Str(_) => assert_eq!(lit.unwrap_str(), "string".to_string()),
+                            Literal::Number(_) => assert_eq!(lit.unwrap_number(), 123_f64),
+                            _ => assert_eq!(&val.literal, &None),
+                        }
                     };
                     if let Some(lexeme) = lexemes.get(i) {
                         assert_eq!(&val.lexeme, lexeme);
                     };
                 }
-            },
-            Err(_) => panic!("failed")
-        }        
+            }
+            Err(_) => panic!("failed"),
+        }
     }
 
     #[test]
     fn keyword_tokens() {
-        let src = "and class else false fn for if or print return super this true let none while break continue";
+        let src = "and class else false fn for if or return this true let none while break continue";
         let e_handler = LoxErrorHandler::new();
         let mut s = Scanner::new(src, &e_handler);
         let expected_token = vec![
@@ -518,9 +531,7 @@ mod tests {
             TokenType::For,
             TokenType::If,
             TokenType::Or,
-            TokenType::Print,
             TokenType::Return,
-            TokenType::Super,
             TokenType::This,
             TokenType::True,
             TokenType::Let,
@@ -528,7 +539,7 @@ mod tests {
             TokenType::While,
             TokenType::Break,
             TokenType::Continue,
-            TokenType::EOF
+            TokenType::EOF,
         ];
 
         let lexemes = vec![
@@ -540,9 +551,7 @@ mod tests {
             String::from("for"),
             String::from("if"),
             String::from("or"),
-            String::from("print"),
             String::from("return"),
-            String::from("super"),
             String::from("this"),
             String::from("true"),
             String::from("let"),
@@ -562,8 +571,8 @@ mod tests {
                         assert_eq!(&val.lexeme, lexeme);
                     };
                 }
-            },
-            Err(_) => panic!("failed")
+            }
+            Err(_) => panic!("failed"),
         }
     }
 
@@ -575,14 +584,12 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Unknown character $".to_string());
         match s.scan_tokens() {
             Ok(_) => panic!("failed"),
-            Err(err) => {
-                match err {
-                    LoxResult::Error(err) => {
-                        assert_eq!(err.error_type, expected);
-                    },
-                    _ => {}
+            Err(err) => match err {
+                LoxResult::Error(err) => {
+                    assert_eq!(err.error_type, expected);
                 }
-            }
+                _ => {}
+            },
         }
     }
 
@@ -594,14 +601,12 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("String was not terminated".to_string());
         match s.scan_tokens() {
             Ok(_) => panic!("failed"),
-            Err(err) => {
-                match err {
-                    LoxResult::Error(err) => {
-                        assert_eq!(err.error_type, expected);
-                    },
-                    _ => {}
+            Err(err) => match err {
+                LoxResult::Error(err) => {
+                    assert_eq!(err.error_type, expected);
                 }
-            }
+                _ => {}
+            },
         }
     }
 
@@ -613,15 +618,12 @@ mod tests {
         let expected = LoxErrorsTypes::Syntax("Comment block was not terminated".to_string());
         match s.scan_tokens() {
             Ok(_) => panic!("failed"),
-            Err(err) => {
-                match err {
-                    LoxResult::Error(err) => {
-                        assert_eq!(err.error_type, expected);
-                    },
-                    _ => {}
+            Err(err) => match err {
+                LoxResult::Error(err) => {
+                    assert_eq!(err.error_type, expected);
                 }
-            }
+                _ => {}
+            },
         }
     }
 }
-

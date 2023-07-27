@@ -17,8 +17,8 @@ struct NumberClass {
 }
 
 impl NumberClass {
-    fn new(num: &NumberData) -> Self {
-        let members = NumberMembers::new(num.clone());
+    fn new() -> Self {
+        let members = NumberMembers::new();
         Self {
             klass: LoxClass::new(
                 "Number",
@@ -41,7 +41,7 @@ pub struct LoxNumber {
 impl LoxNumber {
     pub fn new(num: f64) -> Self {
         let num = Rc::new(RefCell::new(num));
-        let cl = NumberClass::new(&num);
+        let cl = NumberClass::new();
         let inst = LoxInstance::new(&cl.klass, cl.fields.clone());
         Self {
             num,
